@@ -1,137 +1,195 @@
 # AI Minesweeper Solver
 
-Hệ thống giải đố Dò mìn thông minh cho môn **Nhập môn AI**.
-
-## Trạng thái hiện tại
-
-- Đã có board engine mô phỏng trò chơi Minesweeper.
-- Đã có AI solver cơ bản dùng logic, constraint, subset inference và xác suất.
-- Đã có CLI demo để chạy thử trên terminal.
-- Đã có chế độ evaluation để chạy solver trên nhiều ván.
-- Đã có test tự động bằng pytest.
-- Đã có tài liệu proposal, thuật toán, phân công công việc và kế hoạch sprint.
-
 ## 1. Giới thiệu
 
-Project xây dựng một AI agent có khả năng chơi Minesweeper bằng cách kết hợp:
+**AI Minesweeper Solver** là project xây dựng một tác tử AI có khả năng chơi và giải trò chơi Minesweeper. Project được thực hiện trong khuôn khổ môn **Nhập môn Trí tuệ nhân tạo**.
 
-- Suy luận logic cơ bản.
-- Constraint Satisfaction Problem.
-- Subset inference.
-- Ước lượng xác suất trong trường hợp bắt buộc phải đoán.
+Minesweeper là một trò chơi có yếu tố suy luận logic và ra quyết định trong điều kiện không chắc chắn. Người chơi cần dựa vào các con số trên bàn để xác định ô nào an toàn và ô nào có mìn. Trong nhiều tình huống, solver có thể suy luận chắc chắn; tuy nhiên, cũng có những trạng thái cần đánh giá xác suất để đưa ra lựa chọn hợp lý.
 
-Mục tiêu của project không chỉ là chơi Minesweeper tự động, mà còn minh họa các khái niệm quan trọng trong môn Nhập môn AI như agent, biểu diễn tri thức, suy luận logic, tìm kiếm ràng buộc và ra quyết định trong điều kiện không chắc chắn.
+Project này tập trung vào việc mô phỏng bàn chơi, xây dựng solver, chạy đánh giá tự động và đo lường hiệu quả của thuật toán.
 
-## 2. Thành viên
+## 2. Mục tiêu project
 
-| Thành viên | MSSV | Vai trò |
-|---|---:|---|
-| Nguyễn Hữu Chính | 202416143 | Trưởng nhóm, Solver logic/CSP |
-| Hoàng Thị Thu Phương | 202400068 | Board engine, simulation, evaluation |
-| Nguyễn Đăng Cao Tuấn | 202400119 | CLI/demo, docs, report, presentation |
+Project hướng tới các mục tiêu chính sau:
 
-## 3. Cấu trúc repo
+* Mô phỏng đầy đủ bàn chơi Minesweeper.
+* Xây dựng AI solver có khả năng chọn hành động tự động.
+* Áp dụng suy luận logic để tìm ô an toàn hoặc ô chắc chắn có mìn.
+* Sử dụng đánh giá xác suất trong các tình huống không chắc chắn.
+* Chạy evaluation trên nhiều ván chơi để đo hiệu quả của solver.
+* Cung cấp CLI để demo và đánh giá solver ở nhiều độ khó khác nhau.
+* Viết test tự động để kiểm tra độ ổn định của các module chính.
+
+## 3. Thành viên nhóm
+
+| Thành viên           | Vai trò chính                        |
+| -------------------- | ------------------------------------ |
+| Nguyễn Hữu Chính     | Solver logic, suy luận AI            |
+| Hoàng Thị Thu Phương | Board engine, simulation, evaluation |
+| Nguyễn Đăng Cao Tuấn | CLI, tài liệu, kiểm thử và tích hợp  |
+
+## 4. Cấu trúc thư mục
 
 ```text
-IT3160_AI_Minesweeper_Solver/
-├── src/minesweeper/
-│   ├── board.py          # Mô phỏng bàn chơi
-│   ├── solver.py         # AI solver
-│   ├── evaluation.py     # Đánh giá solver trên nhiều game
-│   └── cli.py            # Demo terminal và evaluation mode
+AI_Minesweeper_Solver/
+├── docs/
+│   ├── EVALUATION.md
+│   └── PHAN_CONG_CONG_VIEC.md
+├── src/
+│   └── minesweeper/
+│       ├── __init__.py
+│       ├── board.py
+│       ├── cli.py
+│       ├── evaluation.py
+│       └── solver.py
 ├── tests/
 │   ├── test_board.py
+│   ├── test_evaluation.py
 │   └── test_solver.py
-├── docs/
-│   ├── PROJECT_PROPOSAL.md
-│   ├── PHAN_CONG_CONG_VIEC.md
-│   ├── ALGORITHM.md
-│   ├── EVALUATION.md
-│   ├── FINAL_REPORT_OUTLINE.md
-│   └── SPRINT_PLAN.md
-├── examples/
-│   └── demo_commands.md
-├── .github/workflows/python-ci.yml
 ├── requirements.txt
 ├── pyproject.toml
 └── README.md
 ```
 
-## 4. Cài đặt
+## 5. Các module chính
 
-Clone repo:
+### 5.1. Board engine
+
+File chính:
+
+```text
+src/minesweeper/board.py
+```
+
+Module này chịu trách nhiệm mô phỏng bàn chơi Minesweeper, bao gồm:
+
+* Tạo bàn chơi với số hàng, số cột và số mìn tùy chọn.
+* Đặt mìn ngẫu nhiên theo seed.
+* Bảo vệ lượt click đầu tiên để tránh thua ngay lập tức.
+* Tính số mìn xung quanh mỗi ô.
+* Reveal ô.
+* Flag ô nghi ngờ có mìn.
+* Trả về trạng thái hiển thị của bàn chơi.
+
+### 5.2. Solver
+
+File chính:
+
+```text
+src/minesweeper/solver.py
+```
+
+Module solver chịu trách nhiệm chọn hành động tiếp theo cho AI. Solver sử dụng các chiến lược như:
+
+* Suy luận logic cơ bản.
+* Xác định ô chắc chắn an toàn.
+* Xác định ô chắc chắn có mìn.
+* Ước lượng xác suất trong các trường hợp chưa thể suy luận chắc chắn.
+* Chọn hành động reveal hoặc flag phù hợp.
+
+### 5.3. Evaluation
+
+File chính:
+
+```text
+src/minesweeper/evaluation.py
+```
+
+Module evaluation dùng để đánh giá solver trên nhiều ván chơi. Các chỉ số hiện có:
+
+| Chỉ số          | Ý nghĩa                           |
+| --------------- | --------------------------------- |
+| Games           | Tổng số ván được đánh giá         |
+| Wins            | Số ván solver thắng               |
+| Losses          | Số ván solver thua                |
+| Win rate        | Tỉ lệ thắng                       |
+| Average steps   | Số bước trung bình mỗi ván        |
+| Average flags   | Số ô được cắm cờ trung bình       |
+| Average runtime | Thời gian chạy trung bình mỗi ván |
+
+### 5.4. CLI
+
+File chính:
+
+```text
+src/minesweeper/cli.py
+```
+
+CLI hỗ trợ hai chế độ:
+
+* Chạy demo một ván chơi.
+* Chạy evaluation trên nhiều ván.
+
+CLI cũng hỗ trợ các preset độ khó:
+
+| Difficulty   |         Kích thước bàn |                 Số mìn |
+| ------------ | ---------------------: | ---------------------: |
+| beginner     |                  9 x 9 |                     10 |
+| intermediate |                16 x 16 |                     40 |
+| expert       |                16 x 30 |                     99 |
+| custom       | Tùy chỉnh bằng tham số | Tùy chỉnh bằng tham số |
+
+## 6. Cài đặt
+
+Yêu cầu:
+
+* Python 3.12 hoặc tương thích.
+* pip.
+
+Clone repository:
 
 ```bash
 git clone https://github.com/t345087-rgb/IT3160_AI_Minesweeper_Solver.git
 cd IT3160_AI_Minesweeper_Solver
 ```
 
-Tạo môi trường ảo:
-
-```bash
-python -m venv .venv
-```
-
-Kích hoạt môi trường ảo trên Windows:
-
-```bash
-.venv\Scripts\activate
-```
-
-Kích hoạt môi trường ảo trên macOS/Linux:
-
-```bash
-source .venv/bin/activate
-```
-
-Cài thư viện:
+Cài dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-Cài package ở chế độ editable để chạy module dễ hơn trong lúc phát triển:
+Cài project ở chế độ editable:
 
 ```bash
 python -m pip install -e .
 ```
 
-## 5. Chạy demo một ván
+## 7. Cách chạy demo
+
+Chạy demo với cấu hình mặc định:
+
+```bash
+python -m minesweeper.cli
+```
+
+Chạy demo với cấu hình tùy chỉnh:
 
 ```bash
 python -m minesweeper.cli --rows 9 --cols 9 --mines 10 --steps 30 --seed 7
 ```
 
-Lệnh trên chạy một ván Minesweeper 9x9 với 10 mìn, tối đa 30 bước, và in từng hành động của AI solver ra terminal.
-
-Ví dụ hành động:
-
-```text
-Step 1: reveal Position(row=0, col=0) | no information; first hidden cell fallback | p=None
-```
-
-## 6. Chạy evaluation
-
-Chạy solver trên nhiều ván để lấy thống kê:
+Chạy demo với preset độ khó:
 
 ```bash
-python -m minesweeper.cli --evaluate --games 100
+python -m minesweeper.cli --difficulty beginner
 ```
-
-Có thể thay đổi kích thước bàn và số mìn:
 
 ```bash
-python -m minesweeper.cli --evaluate --games 100 --rows 9 --cols 9 --mines 10
+python -m minesweeper.cli --difficulty intermediate
 ```
 
-Kết quả evaluation gồm:
+```bash
+python -m minesweeper.cli --difficulty expert
+```
 
-- Số ván đã chạy.
-- Số ván thắng.
-- Số ván thua.
-- Tỉ lệ thắng.
-- Số bước trung bình.
-- Số flag trung bình.
+## 8. Cách chạy evaluation
+
+Chạy evaluation mặc định:
+
+```bash
+python -m minesweeper.cli --evaluate --games 5
+```
 
 Ví dụ output:
 
@@ -143,109 +201,115 @@ Evaluation result
 - Win rate: 100.00%
 - Average steps: 81.00
 - Average flags: 10.00
+- Average runtime: 0.020668 seconds
 ```
 
-## 7. Chạy test
+Chạy evaluation với preset beginner:
+
+```bash
+python -m minesweeper.cli --evaluate --difficulty beginner --games 5
+```
+
+Chạy evaluation với preset intermediate:
+
+```bash
+python -m minesweeper.cli --evaluate --difficulty intermediate --games 2 --max-steps 500
+```
+
+Chạy evaluation với preset expert:
+
+```bash
+python -m minesweeper.cli --evaluate --difficulty expert --games 1 --max-steps 1000
+```
+
+Chạy evaluation với cấu hình custom:
+
+```bash
+python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --mines 10 --games 10
+```
+
+## 9. Kiểm thử
+
+Project sử dụng `pytest` để kiểm thử tự động.
+
+Chạy toàn bộ test:
 
 ```bash
 python -m pytest
 ```
 
-Kết quả mong muốn:
+Kết quả hiện tại:
 
 ```text
-5 passed
+14 passed
 ```
 
-## 8. Nội dung AI trong project
+Các test hiện có:
 
-Project thể hiện các kiến thức AI sau:
+| File test                  | Số test | Nội dung chính                                                        |
+| -------------------------- | ------: | --------------------------------------------------------------------- |
+| `tests/test_board.py`      |       8 | Kiểm tra board engine, first-click safety, flag, reveal, visible view |
+| `tests/test_evaluation.py` |       4 | Kiểm tra evaluation, runtime metric và format output                  |
+| `tests/test_solver.py`     |       2 | Kiểm tra solver logic cơ bản                                          |
 
-- **Agent**: AI quan sát trạng thái bàn chơi và chọn hành động reveal hoặc flag.
-- **Knowledge representation**: Trạng thái bàn chơi được biểu diễn bằng các ô đã mở, ô ẩn, ô đã flag và số gợi ý.
-- **Logical inference**: Nếu số mìn còn lại quanh một ô bằng 0, các ô lân cận còn lại là an toàn. Nếu số mìn còn lại bằng số ô ẩn lân cận, tất cả các ô đó là mìn.
-- **Constraint Satisfaction Problem**: Mỗi ô ẩn ở frontier có thể được xem là biến nhị phân: có mìn hoặc không có mìn.
-- **Subset inference**: So sánh các tập ràng buộc để suy ra ô an toàn hoặc ô có mìn.
-- **Decision making under uncertainty**: Khi không suy luận chắc chắn được, solver chọn ô có xác suất chứa mìn thấp nhất.
-
-## 9. Thuật toán tổng quát
-
-Solver hoạt động theo thứ tự ưu tiên:
-
-1. Thu thập constraint từ các ô đã reveal.
-2. Áp dụng luật logic cơ bản.
-3. Áp dụng subset inference.
-4. Ước lượng xác suất mìn cho các ô frontier.
-5. Nếu vẫn không có thông tin, chọn ô ẩn đầu tiên làm fallback.
-
-Luồng quyết định:
+Tổng cộng:
 
 ```text
-Board state
-    ↓
-Extract constraints
-    ↓
-Logical inference
-    ↓
-Subset inference
-    ↓
-Probability estimation
-    ↓
-Choose action: reveal / flag
+8 + 4 + 2 = 14 tests
 ```
 
-## 10. Quy trình làm việc với Git
+## 10. Tài liệu liên quan
 
-Nhóm làm việc theo mô hình branch:
+Các tài liệu phụ nằm trong thư mục `docs/`:
 
 ```text
-main      : bản ổn định cuối cùng
-develop   : nhánh tích hợp chính
-feature/* : nhánh làm việc của từng phần
+docs/EVALUATION.md
+docs/PHAN_CONG_CONG_VIEC.md
 ```
 
-Các nhánh chính:
+Trong đó:
 
-```text
-feature/solver-logic
-feature/board-evaluation
-feature/demo-docs
-```
+* `EVALUATION.md`: mô tả kế hoạch đánh giá solver, các chỉ số và cách chạy evaluation.
+* `PHAN_CONG_CONG_VIEC.md`: mô tả phân công công việc trong nhóm.
 
-Quy trình làm việc:
+## 11. Quy trình làm việc với Git
+
+Các bước làm việc khuyến nghị:
 
 ```bash
 git checkout develop
 git pull origin develop
-git checkout feature/demo-docs
-git pull origin develop
+git checkout -b feature/ten-chuc-nang
 ```
 
-Sau khi sửa code hoặc tài liệu:
+Sau khi sửa code:
 
 ```bash
 python -m pytest
 git status
-git add .
-git commit -m "message"
-git push
+git add <file-can-commit>
+git commit -m "type: short description"
+git push origin feature/ten-chuc-nang
 ```
 
-Sau đó tạo Pull Request từ nhánh feature vào `develop`.
+Sau đó tạo Pull Request vào branch `develop`.
 
-## 11. Phân công công việc
+Không nên commit trực tiếp lên `develop`.
 
-| Thành viên | Phần việc chính | File liên quan |
-|---|---|---|
-| Nguyễn Hữu Chính | Solver logic, CSP, xác suất | `src/minesweeper/solver.py`, `docs/ALGORITHM.md` |
-| Hoàng Thị Thu Phương | Board engine, simulation, evaluation | `src/minesweeper/board.py`, `src/minesweeper/evaluation.py`, `docs/EVALUATION.md` |
-| Nguyễn Đăng Cao Tuấn | CLI demo, README, report, slide | `src/minesweeper/cli.py`, `README.md`, `docs/FINAL_REPORT_OUTLINE.md` |
+## 12. Trạng thái hiện tại
 
-## 12. Hướng phát triển
+Project hiện đã có:
 
-- Thêm GUI để trực quan hóa quá trình giải.
-- Tách frontier thành các component độc lập để tăng tốc evaluation.
-- Dùng Gaussian elimination cho constraint solving.
-- Chạy đánh giá hàng nghìn game để có số liệu ổn định hơn.
-- So sánh solver logic với solver random baseline.
-- Xuất kết quả evaluation ra file CSV để đưa vào báo cáo.
+* Board engine hoạt động ổn định.
+* Solver có thể tự động chọn hành động.
+* CLI demo và evaluation.
+* Evaluation có các chỉ số win rate, average steps, average flags và average runtime.
+* Preset độ khó beginner, intermediate, expert và custom.
+* Test tự động với tổng cộng 14 test.
+* Tài liệu evaluation bằng tiếng Việt.
+
+## 13. Kết luận
+
+AI Minesweeper Solver là một project phù hợp với môn Nhập môn Trí tuệ nhân tạo vì kết hợp nhiều nội dung quan trọng như tìm kiếm, suy luận logic, ra quyết định trong điều kiện không chắc chắn và đánh giá hiệu quả thuật toán.
+
+Project không chỉ mô phỏng trò chơi Minesweeper mà còn xây dựng một tác tử AI có khả năng chơi tự động, đưa ra quyết định và được đánh giá bằng các chỉ số định lượng rõ ràng.
