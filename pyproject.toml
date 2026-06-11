@@ -1,0 +1,9 @@
+[project]
+name = "ai-minesweeper-solver"
+version = "0.1.0"
+description = "Intelligent Minesweeper Solver for Intro to AI"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

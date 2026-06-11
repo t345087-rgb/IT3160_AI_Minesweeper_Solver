@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: ai-minesweeper-solver
+Version: 0.1.0
+Summary: Intelligent Minesweeper Solver for Intro to AI
+Requires-Python: >=3.10
