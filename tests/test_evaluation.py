@@ -1,4 +1,4 @@
-from minesweeper.evaluation import evaluate_solver, play_one_game
+from minesweeper.evaluation import evaluate_solver, format_evaluation_result, play_one_game
 
 
 def test_play_one_game_returns_valid_result():
@@ -32,10 +32,25 @@ def test_evaluate_solver_returns_summary_statistics():
     assert 0 <= result.win_rate <= 1
     assert result.average_steps >= 0
     assert result.average_flags >= 0
-
+    assert result.average_runtime_seconds >= 0
 
 def test_evaluate_solver_rejects_non_positive_game_count():
     import pytest
 
     with pytest.raises(ValueError):
         evaluate_solver(games=0)
+
+def test_format_evaluation_result_includes_runtime():
+    result = evaluate_solver(
+        games=1,
+        rows=9,
+        cols=9,
+        mines=10,
+        max_steps=200,
+        seeds=[1],
+    )
+
+    output = format_evaluation_result(result)
+
+    assert "Average runtime" in output
+    assert "seconds" in output
