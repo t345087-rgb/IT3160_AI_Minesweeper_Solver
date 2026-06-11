@@ -2,6 +2,13 @@
 
 Hệ thống giải đố Dò mìn thông minh cho môn **Nhập môn AI**.
 
+## Trạng thái hiện tại
+
+- Đã có board engine mô phỏng trò chơi Minesweeper.
+- Đã có AI solver cơ bản dùng logic, constraint và xác suất.
+- Đã có CLI demo để chạy thử trên terminal.
+- Đã có test tự động bằng pytest.
+
 ## 1. Giới thiệu
 Project xây dựng một AI agent có khả năng chơi Minesweeper bằng cách kết hợp:
 - Suy luận logic cơ bản.
