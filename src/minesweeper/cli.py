@@ -6,7 +6,8 @@ from rich.console import Console
 from rich.table import Table
 
 from minesweeper.board import Board
-from minesweeper.solver import ActionType, MinesweeperSolver
+from minesweeper.evaluation import evaluate_solver, format_evaluation_result
+from minesweeper.solver import MinesweeperSolver
 
 console = Console()
 
@@ -20,15 +21,7 @@ def render(board: Board) -> None:
     console.print(table)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run AI Minesweeper Solver demo")
-    parser.add_argument("--rows", type=int, default=9)
-    parser.add_argument("--cols", type=int, default=9)
-    parser.add_argument("--mines", type=int, default=10)
-    parser.add_argument("--steps", type=int, default=30)
-    parser.add_argument("--seed", type=int, default=7)
-    args = parser.parse_args()
-
+def run_demo(args: argparse.Namespace) -> None:
     board = Board(args.rows, args.cols, args.mines, seed=args.seed)
     solver = MinesweeperSolver(board)
 
@@ -37,9 +30,58 @@ def main() -> None:
         if action is None:
             console.print("No more actions.")
             break
+
         solver.apply_action(action)
-        console.print(f"Step {step + 1}: {action.action_type.value} {action.position} | {action.reason} | p={action.probability}")
+        console.print(
+            f"Step {step + 1}: {action.action_type.value} {action.position} "
+            f"| {action.reason} | p={action.probability}"
+        )
         render(board)
+
+
+def run_evaluation(args: argparse.Namespace) -> None:
+    result = evaluate_solver(
+        games=args.games,
+        rows=args.rows,
+        cols=args.cols,
+        mines=args.mines,
+        max_steps=args.max_steps,
+    )
+    console.print(format_evaluation_result(result))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run AI Minesweeper Solver demo")
+    parser.add_argument("--rows", type=int, default=9)
+    parser.add_argument("--cols", type=int, default=9)
+    parser.add_argument("--mines", type=int, default=10)
+    parser.add_argument("--steps", type=int, default=30)
+    parser.add_argument("--seed", type=int, default=7)
+
+    parser.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="Run evaluation over multiple games instead of a single demo game.",
+    )
+    parser.add_argument(
+        "--games",
+        type=int,
+        default=100,
+        help="Number of games used in evaluation mode.",
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=200,
+        help="Maximum steps per game in evaluation mode.",
+    )
+
+    args = parser.parse_args()
+
+    if args.evaluate:
+        run_evaluation(args)
+    else:
+        run_demo(args)
 
 
 if __name__ == "__main__":
