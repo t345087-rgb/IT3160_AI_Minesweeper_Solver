@@ -12,6 +12,21 @@ from minesweeper.solver import MinesweeperSolver
 console = Console()
 
 
+DIFFICULTY_PRESETS = {
+    "beginner": (9, 9, 10),
+    "intermediate": (16, 16, 40),
+    "expert": (16, 30, 99),
+}
+
+
+def resolve_board_config(args: argparse.Namespace) -> tuple[int, int, int]:
+    """Return rows, cols and mines based on the selected difficulty."""
+    if args.difficulty == "custom":
+        return args.rows, args.cols, args.mines
+
+    return DIFFICULTY_PRESETS[args.difficulty]
+
+
 def render(board: Board) -> None:
     table = Table(show_header=False, box=None)
     for _ in range(board.cols):
@@ -22,7 +37,9 @@ def render(board: Board) -> None:
 
 
 def run_demo(args: argparse.Namespace) -> None:
-    board = Board(args.rows, args.cols, args.mines, seed=args.seed)
+    rows, cols, mines = resolve_board_config(args)
+
+    board = Board(rows, cols, mines, seed=args.seed)
     solver = MinesweeperSolver(board)
 
     for step in range(args.steps):
@@ -40,11 +57,13 @@ def run_demo(args: argparse.Namespace) -> None:
 
 
 def run_evaluation(args: argparse.Namespace) -> None:
+    rows, cols, mines = resolve_board_config(args)
+
     result = evaluate_solver(
         games=args.games,
-        rows=args.rows,
-        cols=args.cols,
-        mines=args.mines,
+        rows=rows,
+        cols=cols,
+        mines=mines,
         max_steps=args.max_steps,
     )
     console.print(format_evaluation_result(result))
@@ -58,6 +77,15 @@ def main() -> None:
     parser.add_argument("--steps", type=int, default=30)
     parser.add_argument("--seed", type=int, default=7)
 
+    parser.add_argument(
+        "--difficulty",
+        choices=["beginner", "intermediate", "expert", "custom"],
+        default="custom",
+        help=(
+            "Board difficulty preset. Use custom to manually set "
+            "--rows, --cols and --mines."
+        ),
+    )
     parser.add_argument(
         "--evaluate",
         action="store_true",
