@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from minesweeper.board import Board, CellState
-from minesweeper.solver import ActionType, MinesweeperSolver
+from minesweeper.solver import Action, ActionType, MinesweeperSolver
 
 
 @dataclass
@@ -20,6 +20,8 @@ class EvaluationResult:
     win_rate: float
     average_steps: float
     average_flags: float
+    total_guesses: int
+    average_guesses: float
     average_runtime_seconds: float
 
 
@@ -36,36 +38,45 @@ def count_flags(board: Board) -> int:
     return sum(1 for pos in board.positions() if board.state(pos) == CellState.FLAGGED)
 
 
+def is_guess_action(action: Action) -> bool:
+    """Return True when a reveal is not known to be safe."""
+    return action.action_type == ActionType.REVEAL and action.probability != 0.0
+
+
 def play_one_game(
     rows: int = 9,
     cols: int = 9,
     mines: int = 10,
     max_steps: int = 200,
     seed: int | None = None,
-) -> tuple[bool, int, int]:
+) -> tuple[bool, int, int, int]:
     """Play one complete game using the solver."""
     board = Board(rows=rows, cols=cols, mines=mines, seed=seed)
     solver = MinesweeperSolver(board)
     steps = 0
+    guesses = 0
 
     for _ in range(max_steps):
         if is_winning_board(board):
-            return True, steps, count_flags(board)
+            return True, steps, count_flags(board), guesses
 
         action = solver.choose_next_action()
         if action is None:
-            return is_winning_board(board), steps, count_flags(board)
+            return is_winning_board(board), steps, count_flags(board), guesses
+
+        if is_guess_action(action):
+            guesses += 1
 
         if action.action_type == ActionType.REVEAL:
             if board.has_mine(action.position):
-                return False, steps + 1, count_flags(board)
+                return False, steps + 1, count_flags(board), guesses
             board.reveal(action.position)
         elif action.action_type == ActionType.FLAG:
             board.flag(action.position)
 
         steps += 1
 
-    return is_winning_board(board), steps, count_flags(board)
+    return is_winning_board(board), steps, count_flags(board), guesses
 
 
 def evaluate_solver(
@@ -87,12 +98,13 @@ def evaluate_solver(
     wins = 0
     total_steps = 0
     total_flags = 0
+    total_guesses = 0
     total_runtime_seconds = 0.0
 
     for i in range(games):
         start_time = time.perf_counter()
 
-        won, steps, flags = play_one_game(
+        won, steps, flags, guesses = play_one_game(
             rows=rows,
             cols=cols,
             mines=mines,
@@ -107,6 +119,7 @@ def evaluate_solver(
             wins += 1
         total_steps += steps
         total_flags += flags
+        total_guesses += guesses
 
     losses = games - wins
     return EvaluationResult(
@@ -116,6 +129,8 @@ def evaluate_solver(
         win_rate=wins / games,
         average_steps=total_steps / games,
         average_flags=total_flags / games,
+        total_guesses=total_guesses,
+        average_guesses=total_guesses / games,
         average_runtime_seconds=total_runtime_seconds / games,
     )
 
@@ -130,5 +145,6 @@ def format_evaluation_result(result: EvaluationResult) -> str:
         f"- Win rate: {result.win_rate:.2%}\n"
         f"- Average steps: {result.average_steps:.2f}\n"
         f"- Average flags: {result.average_flags:.2f}\n"
+        f"- Average guesses: {result.average_guesses:.2f}\n"
         f"- Average runtime: {result.average_runtime_seconds:.6f} seconds"
     )
