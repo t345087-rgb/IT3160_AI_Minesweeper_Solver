@@ -102,7 +102,16 @@ class MinesweeperSolver:
         if not variables:
             return {}
         if len(variables) > 20:
-            return {p: self.board.mine_count / (self.board.rows * self.board.cols) for p in variables}
+            flagged_cells = sum(
+                self.board.state(p) == CellState.FLAGGED for p in self.board.positions()
+            )
+            hidden_cells = sum(
+                self.board.state(p) == CellState.HIDDEN for p in self.board.positions()
+            )
+            remaining_mines = self.board.mine_count - flagged_cells
+            base_probability = remaining_mines / hidden_cells if hidden_cells > 0 else 0.0
+            base_probability = max(0.0, min(1.0, base_probability))
+            return {p: base_probability for p in variables}
 
         valid_count = 0
         mine_hits = {p: 0 for p in variables}

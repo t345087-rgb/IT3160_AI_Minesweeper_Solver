@@ -1,5 +1,5 @@
 from minesweeper.board import Board, Position
-from minesweeper.solver import ActionType, MinesweeperSolver
+from minesweeper.solver import ActionType, Constraint, MinesweeperSolver
 
 
 def _configured_board(
@@ -108,6 +108,28 @@ def test_probability_estimates_are_between_zero_and_one():
 
     assert probabilities
     assert all(0.0 <= probability <= 1.0 for probability in probabilities.values())
+
+
+def test_probability_fallback_uses_remaining_mines_over_hidden_cells(monkeypatch):
+    board = Board(5, 5, 8)
+    flagged = {Position(0, 0), Position(0, 1)}
+    for position in flagged:
+        board.flag(position)
+
+    frontier = [position for position in board.positions() if position not in flagged][:21]
+    solver = MinesweeperSolver(board)
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [Constraint(frozenset(frontier), 6)],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    expected_probability = (board.mine_count - len(flagged)) / (25 - len(flagged))
+    assert probabilities == {
+        position: expected_probability for position in frontier
+    }
 
 
 def test_choose_next_action_prefers_certain_action_before_guessing(monkeypatch):
