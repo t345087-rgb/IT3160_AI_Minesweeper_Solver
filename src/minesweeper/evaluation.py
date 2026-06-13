@@ -26,7 +26,9 @@ class EvaluationResult:
 
 def is_winning_board(board: Board) -> bool:
     """Return True if all non-mine cells are revealed OR all mines are correctly flagged."""
-    # Cách 1: Kiểm tra xem còn ô trống nào không phải mìn mà chưa mở không
+    if not board._initialized:
+        return False
+
     all_safe_revealed = True
     all_mines_flagged = True
     
@@ -69,7 +71,6 @@ def play_one_game(
         if is_winning_board(board):
             return True, steps, count_flags(board), guesses, pure_inference_time
 
-        # Chỉ đo thời gian suy luận cốt lõi của AI Solver
         t0 = time.perf_counter()
         action = solver.choose_next_action()
         pure_inference_time += time.perf_counter() - t0
@@ -77,14 +78,13 @@ def play_one_game(
         if action is None:
             return is_winning_board(board), steps, count_flags(board), guesses, pure_inference_time
 
-        steps += 1  # Tăng step đồng nhất ngay khi AI đưa ra quyết định hành động
+        steps += 1
 
         if is_guess_action(action):
             guesses += 1
 
         if action.action_type == ActionType.REVEAL:
             if board.has_mine(action.position):
-                # Vẫn gọi reveal để cập nhật trạng thái nổ mìn lên board trước khi thua
                 try:
                     board.reveal(action.position)
                 except ValueError:
