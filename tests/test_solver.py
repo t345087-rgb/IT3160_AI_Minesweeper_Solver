@@ -2,6 +2,7 @@ from minesweeper.board import Board, Position
 from minesweeper.solver import (
     ActionType,
     Constraint,
+    MAX_ENUMERATION_VARIABLES,
     MinesweeperSolver,
     frontier_components,
 )
@@ -193,26 +194,126 @@ def test_probability_estimates_are_between_zero_and_one():
     assert all(0.0 <= probability <= 1.0 for probability in probabilities.values())
 
 
-def test_probability_fallback_uses_remaining_mines_over_hidden_cells(monkeypatch):
+def test_probability_estimates_enumerates_two_independent_small_components(monkeypatch):
+    board = Board(2, 3, 1)
+    first = {Position(0, 0), Position(0, 1)}
+    certain_safe = Position(1, 2)
+    solver = MinesweeperSolver(board)
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [
+            Constraint(frozenset(first), 1),
+            Constraint(frozenset({certain_safe}), 0),
+        ],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {
+        Position(0, 0): 0.5,
+        Position(0, 1): 0.5,
+        certain_safe: 0.0,
+    }
+
+
+def test_probability_estimates_enumerates_components_when_total_frontier_exceeds_limit(
+    monkeypatch,
+):
+    board = Board(5, 5, 5)
+    frontier = list(board.positions())[:MAX_ENUMERATION_VARIABLES + 1]
+    constraints = [
+        Constraint(frozenset({position}), index % 2)
+        for index, position in enumerate(frontier)
+    ]
+    solver = MinesweeperSolver(board)
+    monkeypatch.setattr(solver, "frontier_constraints", lambda: constraints)
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {
+        position: float(index % 2)
+        for index, position in enumerate(frontier)
+    }
+
+
+def test_probability_estimates_mixes_enumeration_and_component_fallback(monkeypatch):
     board = Board(5, 5, 8)
     flagged = {Position(0, 0), Position(0, 1)}
     for position in flagged:
         board.flag(position)
 
-    frontier = [position for position in board.positions() if position not in flagged][:21]
+    hidden = [position for position in board.positions() if position not in flagged]
+    certain_mine = hidden[0]
+    large_component = hidden[1:MAX_ENUMERATION_VARIABLES + 2]
     solver = MinesweeperSolver(board)
     monkeypatch.setattr(
         solver,
         "frontier_constraints",
-        lambda: [Constraint(frozenset(frontier), 6)],
+        lambda: [
+            Constraint(frozenset({certain_mine}), 1),
+            Constraint(frozenset(large_component), 6),
+        ],
     )
 
     probabilities = solver.probability_estimates()
 
     expected_probability = (board.mine_count - len(flagged)) / (25 - len(flagged))
-    assert probabilities == {
-        position: expected_probability for position in frontier
-    }
+    assert probabilities[certain_mine] == 1.0
+    assert all(
+        probabilities[position] == expected_probability
+        for position in large_component
+    )
+
+
+def test_invalid_component_uses_fallback_without_losing_valid_component(monkeypatch):
+    board = Board(2, 2, 1)
+    invalid = Position(0, 0)
+    certain_mine = Position(1, 1)
+    solver = MinesweeperSolver(board)
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [
+            Constraint(frozenset({invalid}), 0),
+            Constraint(frozenset({invalid}), 1),
+            Constraint(frozenset({certain_mine}), 1),
+        ],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities[invalid] == 0.25
+    assert probabilities[certain_mine] == 1.0
+
+
+def test_probability_estimates_returns_empty_dictionary_without_constraints(monkeypatch):
+    solver = MinesweeperSolver(Board(2, 2, 1))
+    monkeypatch.setattr(solver, "frontier_constraints", lambda: [])
+
+    assert solver.probability_estimates() == {}
+
+
+def test_fallback_probabilities_are_clamped_between_zero_and_one(monkeypatch):
+    board = Board(5, 5, 1)
+    flagged = {Position(0, 0), Position(0, 1)}
+    for position in flagged:
+        board.flag(position)
+    large_component = [
+        position for position in board.positions() if position not in flagged
+    ][:MAX_ENUMERATION_VARIABLES + 1]
+    solver = MinesweeperSolver(board)
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [Constraint(frozenset(large_component), 1)],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities
+    assert all(0.0 <= probability <= 1.0 for probability in probabilities.values())
+    assert set(probabilities.values()) == {0.0}
 
 
 def test_choose_next_action_prefers_certain_action_before_guessing(monkeypatch):

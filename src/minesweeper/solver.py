@@ -8,6 +8,9 @@ from typing import Iterable
 from minesweeper.board import Board, CellState, Position
 
 
+MAX_ENUMERATION_VARIABLES = 20
+
+
 class ActionType(str, Enum):
     REVEAL = "reveal"
     FLAG = "flag"
@@ -60,6 +63,56 @@ def frontier_components(constraints: Iterable[Constraint]) -> list[list[Position
 
     components.sort(key=lambda component: (component[0].row, component[0].col))
     return components
+
+
+def _constraints_for_component(
+    component: list[Position],
+    constraints: Iterable[Constraint],
+) -> list[Constraint]:
+    component_variables = set(component)
+    related = [
+        constraint
+        for constraint in constraints
+        if constraint.variables & component_variables
+    ]
+    for constraint in related:
+        if not constraint.variables.issubset(component_variables):
+            raise RuntimeError(
+                "frontier constraint spans multiple connected components"
+            )
+    return related
+
+
+def _enumerate_component_probabilities(
+    variables: list[Position],
+    constraints: Iterable[Constraint],
+) -> dict[Position, float] | None:
+    valid_count = 0
+    mine_hits = {position: 0 for position in variables}
+
+    for mask in range(1 << len(variables)):
+        assignment = {
+            position
+            for index, position in enumerate(variables)
+            if (mask >> index) & 1
+        }
+        if any(
+            sum(position in assignment for position in constraint.variables)
+            != constraint.mine_count
+            for constraint in constraints
+        ):
+            continue
+
+        valid_count += 1
+        for position in assignment:
+            mine_hits[position] += 1
+
+    if valid_count == 0:
+        return None
+    return {
+        position: mine_hits[position] / valid_count
+        for position in variables
+    }
 
 
 class MinesweeperSolver:
@@ -126,48 +179,50 @@ class MinesweeperSolver:
         return list(actions.values())
 
     def probability_estimates(self) -> dict[Position, float]:
-        """Estimate mine probability on frontier by enumerating valid assignments.
-
-        This is intentionally simple and suitable for beginner/intermediate boards.
-        Large frontier components can be optimized later by splitting into components
-        or using Gaussian elimination / CSP search.
-        """
+        """Estimate frontier mine probabilities component by component."""
         constraints = self.frontier_constraints()
-        variables = sorted({p for con in constraints for p in con.variables}, key=lambda p: (p.row, p.col))
-        if not variables:
+        components = frontier_components(constraints)
+        if not components:
             return {}
-        if len(variables) > 20:
-            flagged_cells = sum(
-                self.board.state(p) == CellState.FLAGGED for p in self.board.positions()
+
+        fallback_probability = self._fallback_probability()
+        probabilities: dict[Position, float] = {}
+        for component in components:
+            component_constraints = _constraints_for_component(
+                component,
+                constraints,
             )
-            hidden_cells = sum(
-                self.board.state(p) == CellState.HIDDEN for p in self.board.positions()
-            )
-            remaining_mines = self.board.mine_count - flagged_cells
-            base_probability = remaining_mines / hidden_cells if hidden_cells > 0 else 0.0
-            base_probability = max(0.0, min(1.0, base_probability))
-            return {p: base_probability for p in variables}
+            component_probabilities = None
+            if len(component) <= MAX_ENUMERATION_VARIABLES:
+                component_probabilities = _enumerate_component_probabilities(
+                    component,
+                    component_constraints,
+                )
 
-        valid_count = 0
-        mine_hits = {p: 0 for p in variables}
-        index = {p: i for i, p in enumerate(variables)}
+            if component_probabilities is None:
+                component_probabilities = {
+                    position: fallback_probability for position in component
+                }
+            probabilities.update(component_probabilities)
 
-        for mask in range(1 << len(variables)):
-            assignment = {p for i, p in enumerate(variables) if (mask >> i) & 1}
-            ok = True
-            for con in constraints:
-                if sum(p in assignment for p in con.variables) != con.mine_count:
-                    ok = False
-                    break
-            if not ok:
-                continue
-            valid_count += 1
-            for p in assignment:
-                mine_hits[p] += 1
+        return probabilities
 
-        if valid_count == 0:
-            return {p: 0.5 for p in variables}
-        return {p: mine_hits[p] / valid_count for p in variables}
+    def _fallback_probability(self) -> float:
+        flagged_cells = sum(
+            self.board.state(position) == CellState.FLAGGED
+            for position in self.board.positions()
+        )
+        hidden_unflagged_cells = sum(
+            self.board.state(position) == CellState.HIDDEN
+            for position in self.board.positions()
+        )
+        remaining_mines = self.board.mine_count - flagged_cells
+        probability = (
+            remaining_mines / hidden_unflagged_cells
+            if hidden_unflagged_cells > 0
+            else 0.0
+        )
+        return max(0.0, min(1.0, probability))
 
     def choose_next_action(self) -> Action | None:
         for strategy in (self.deterministic_actions, self.subset_inference_actions):
