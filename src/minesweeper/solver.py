@@ -87,25 +87,76 @@ def _enumerate_component_probabilities(
     variables: list[Position],
     constraints: Iterable[Constraint],
 ) -> dict[Position, float] | None:
+    component_constraints = list(constraints)
+    variable_set = set(variables)
+    constraint_variables = [
+        constraint.variables & variable_set
+        for constraint in component_constraints
+    ]
+    constraints_by_variable: dict[Position, list[int]] = {
+        position: [] for position in variables
+    }
+    for constraint_index, positions in enumerate(constraint_variables):
+        for position in positions:
+            constraints_by_variable[position].append(constraint_index)
+
+    ordered_variables = sorted(
+        variables,
+        key=lambda position: (
+            -len(constraints_by_variable[position]),
+            position.row,
+            position.col,
+        ),
+    )
+    assigned_mines = [0] * len(component_constraints)
+    unassigned_variables = [
+        len(positions) for positions in constraint_variables
+    ]
     valid_count = 0
     mine_hits = {position: 0 for position in variables}
+    assignment: set[Position] = set()
 
-    for mask in range(1 << len(variables)):
-        assignment = {
-            position
-            for index, position in enumerate(variables)
-            if (mask >> index) & 1
-        }
-        if any(
-            sum(position in assignment for position in constraint.variables)
-            != constraint.mine_count
-            for constraint in constraints
-        ):
-            continue
+    def backtrack(variable_index: int) -> None:
+        nonlocal valid_count
 
-        valid_count += 1
-        for position in assignment:
-            mine_hits[position] += 1
+        if variable_index == len(ordered_variables):
+            if all(
+                assigned_mines[index] == constraint.mine_count
+                for index, constraint in enumerate(component_constraints)
+            ):
+                valid_count += 1
+                for position in assignment:
+                    mine_hits[position] += 1
+            return
+
+        position = ordered_variables[variable_index]
+        related_constraints = constraints_by_variable[position]
+        for is_mine in (0, 1):
+            branch_is_valid = True
+            for constraint_index in related_constraints:
+                assigned_mines[constraint_index] += is_mine
+                unassigned_variables[constraint_index] -= 1
+                mine_count = component_constraints[constraint_index].mine_count
+                if (
+                    assigned_mines[constraint_index] > mine_count
+                    or assigned_mines[constraint_index]
+                    + unassigned_variables[constraint_index]
+                    < mine_count
+                ):
+                    branch_is_valid = False
+
+            if branch_is_valid:
+                if is_mine:
+                    assignment.add(position)
+                backtrack(variable_index + 1)
+                if is_mine:
+                    assignment.remove(position)
+
+            for constraint_index in related_constraints:
+                assigned_mines[constraint_index] -= is_mine
+                unassigned_variables[constraint_index] += 1
+
+    backtrack(0)
 
     if valid_count == 0:
         return None

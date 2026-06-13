@@ -1,9 +1,12 @@
+import pytest
+
 from minesweeper.board import Board, Position
 from minesweeper.solver import (
     ActionType,
     Constraint,
     MAX_ENUMERATION_VARIABLES,
     MinesweeperSolver,
+    _enumerate_component_probabilities,
     frontier_components,
 )
 
@@ -217,6 +220,49 @@ def test_probability_estimates_enumerates_two_independent_small_components(monke
     }
 
 
+def test_component_probabilities_with_overlapping_constraints():
+    a, b, c, d, e = [Position(0, col) for col in range(5)]
+
+    probabilities = _enumerate_component_probabilities(
+        [a, b, c, d, e],
+        [
+            Constraint(frozenset({a, b, c}), 1),
+            Constraint(frozenset({b, c, d}), 1),
+            Constraint(frozenset({c, d, e}), 1),
+        ],
+    )
+
+    assert probabilities is not None
+    assert probabilities == pytest.approx(
+        {
+            a: 1 / 3,
+            b: 1 / 3,
+            c: 1 / 3,
+            d: 1 / 3,
+            e: 1 / 3,
+        }
+    )
+
+
+def test_tightly_constrained_large_component_has_exact_probabilities():
+    variables = [Position(row, col) for row in range(4) for col in range(5)]
+    expected = {
+        position: float(index % 2)
+        for index, position in enumerate(variables)
+    }
+    constraints = [
+        Constraint(frozenset(variables), len(variables) // 2),
+        *[
+            Constraint(frozenset({position}), int(expected[position]))
+            for position in variables
+        ],
+    ]
+
+    probabilities = _enumerate_component_probabilities(variables, constraints)
+
+    assert probabilities == expected
+
+
 def test_probability_estimates_enumerates_components_when_total_frontier_exceeds_limit(
     monkeypatch,
 ):
@@ -285,6 +331,27 @@ def test_invalid_component_uses_fallback_without_losing_valid_component(monkeypa
 
     assert probabilities[invalid] == 0.25
     assert probabilities[certain_mine] == 1.0
+
+
+def test_unsatisfiable_component_uses_probability_estimate_fallback(monkeypatch):
+    board = Board(2, 3, 2)
+    component = {Position(0, 0), Position(0, 1)}
+    solver = MinesweeperSolver(board)
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [
+            Constraint(frozenset(component), 0),
+            Constraint(frozenset(component), 1),
+        ],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {
+        position: pytest.approx(2 / 6)
+        for position in component
+    }
 
 
 def test_probability_estimates_returns_empty_dictionary_without_constraints(monkeypatch):
