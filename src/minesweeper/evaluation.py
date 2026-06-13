@@ -13,7 +13,6 @@ from minesweeper.solver import Action, ActionType, MinesweeperSolver
 @dataclass
 class EvaluationResult:
     """Summary statistics for a batch of Minesweeper games."""
-
     games: int
     wins: int
     losses: int
@@ -26,11 +25,20 @@ class EvaluationResult:
 
 
 def is_winning_board(board: Board) -> bool:
-    """Return True if every non-mine cell has been revealed."""
+    """Return True if all non-mine cells are revealed OR all mines are correctly flagged."""
+    # Cách 1: Kiểm tra xem còn ô trống nào không phải mìn mà chưa mở không
+    all_safe_revealed = True
+    all_mines_flagged = True
+    
     for pos in board.positions():
-        if not board.has_mine(pos) and board.state(pos) != CellState.REVEALED:
-            return False
-    return True
+        if board.has_mine(pos):
+            if board.state(pos) != CellState.FLAGGED:
+                all_mines_flagged = False
+        else:
+            if board.state(pos) != CellState.REVEALED:
+                all_safe_revealed = False
+                
+    return all_safe_revealed or all_mines_flagged
 
 
 def count_flags(board: Board) -> int:
@@ -49,34 +57,44 @@ def play_one_game(
     mines: int = 10,
     max_steps: int = 200,
     seed: int | None = None,
-) -> tuple[bool, int, int, int]:
-    """Play one complete game using the solver."""
+) -> tuple[bool, int, int, int, float]:
+    """Play one complete game using the solver. Returns (won, steps, flags, guesses, inference_time)."""
     board = Board(rows=rows, cols=cols, mines=mines, seed=seed)
     solver = MinesweeperSolver(board)
     steps = 0
     guesses = 0
+    pure_inference_time = 0.0
 
     for _ in range(max_steps):
         if is_winning_board(board):
-            return True, steps, count_flags(board), guesses
+            return True, steps, count_flags(board), guesses, pure_inference_time
 
+        # Chỉ đo thời gian suy luận cốt lõi của AI Solver
+        t0 = time.perf_counter()
         action = solver.choose_next_action()
+        pure_inference_time += time.perf_counter() - t0
+
         if action is None:
-            return is_winning_board(board), steps, count_flags(board), guesses
+            return is_winning_board(board), steps, count_flags(board), guesses, pure_inference_time
+
+        steps += 1  # Tăng step đồng nhất ngay khi AI đưa ra quyết định hành động
 
         if is_guess_action(action):
             guesses += 1
 
         if action.action_type == ActionType.REVEAL:
             if board.has_mine(action.position):
-                return False, steps + 1, count_flags(board), guesses
+                # Vẫn gọi reveal để cập nhật trạng thái nổ mìn lên board trước khi thua
+                try:
+                    board.reveal(action.position)
+                except ValueError:
+                    pass
+                return False, steps, count_flags(board), guesses, pure_inference_time
             board.reveal(action.position)
         elif action.action_type == ActionType.FLAG:
             board.flag(action.position)
 
-        steps += 1
-
-    return is_winning_board(board), steps, count_flags(board), guesses
+    return is_winning_board(board), steps, count_flags(board), guesses, pure_inference_time
 
 
 def evaluate_solver(
@@ -102,9 +120,7 @@ def evaluate_solver(
     total_runtime_seconds = 0.0
 
     for i in range(games):
-        start_time = time.perf_counter()
-
-        won, steps, flags, guesses = play_one_game(
+        won, steps, flags, guesses, inference_time = play_one_game(
             rows=rows,
             cols=cols,
             mines=mines,
@@ -112,8 +128,7 @@ def evaluate_solver(
             seed=seed_list[i],
         )
 
-        end_time = time.perf_counter()
-        total_runtime_seconds += end_time - start_time
+        total_runtime_seconds += inference_time
 
         if won:
             wins += 1

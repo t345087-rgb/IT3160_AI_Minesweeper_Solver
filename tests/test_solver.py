@@ -1,4 +1,4 @@
-from minesweeper.board import Board, Position
+from minesweeper.board import Board, CellState, Position
 from minesweeper.solver import ActionType, Constraint, MinesweeperSolver
 
 
@@ -15,10 +15,16 @@ def _configured_board(
     board._compute_numbers()
     board._initialized = True
 
+    # KHẮC PHỤC: Gán trực tiếp trạng thái vật lý của ô thay vì gọi hàm board.reveal()
+    # Điều này giúp cô lập cơ chế loang tự động (Flood Fill) để tạo đúng "hiện trường giả" cho bài test Solver
     for position in revealed:
-        board.reveal(position)
+        if board.in_bounds(position):
+            board._states[position.row][position.col] = CellState.REVEALED
+            
     for position in flagged or set():
-        board.flag(position)
+        if board.in_bounds(position):
+            board._states[position.row][position.col] = CellState.FLAGGED
+            
     return board
 
 
