@@ -6,6 +6,7 @@ from minesweeper.solver import (
     Constraint,
     MAX_ENUMERATION_VARIABLES,
     MinesweeperSolver,
+    _enumerate_component_model_counts,
     _enumerate_component_probabilities,
     frontier_components,
 )
@@ -242,6 +243,76 @@ def test_component_probabilities_with_overlapping_constraints():
             e: 1 / 3,
         }
     )
+
+
+def test_component_model_counts_groups_assignments_by_mine_count():
+    a, b, c = [Position(0, col) for col in range(3)]
+
+    model_counts = _enumerate_component_model_counts(
+        [a, b, c],
+        [Constraint(frozenset({a, b, c}), 1)],
+    )
+
+    assert model_counts is not None
+    assert model_counts.ways_by_mine_count == {1: 3}
+    assert model_counts.mine_hits_by_position_and_mine_count == {
+        a: {1: 1},
+        b: {1: 1},
+        c: {1: 1},
+    }
+
+
+def test_component_model_counts_supports_multiple_total_mine_counts():
+    a, b, c = [Position(0, col) for col in range(3)]
+
+    model_counts = _enumerate_component_model_counts(
+        [a, b, c],
+        [
+            Constraint(frozenset({a, b}), 1),
+            Constraint(frozenset({b, c}), 1),
+        ],
+    )
+
+    assert model_counts is not None
+    assert model_counts.ways_by_mine_count == {1: 1, 2: 1}
+    assert model_counts.mine_hits_by_position_and_mine_count == {
+        a: {2: 1},
+        b: {1: 1},
+        c: {2: 1},
+    }
+
+
+def test_component_model_counts_returns_none_when_unsatisfiable():
+    a, b = [Position(0, col) for col in range(2)]
+    variables = frozenset({a, b})
+
+    model_counts = _enumerate_component_model_counts(
+        [a, b],
+        [
+            Constraint(variables, 0),
+            Constraint(variables, 1),
+        ],
+    )
+
+    assert model_counts is None
+
+
+def test_component_probability_wrapper_preserves_marginal_probabilities():
+    a, b, c = [Position(0, col) for col in range(3)]
+
+    probabilities = _enumerate_component_probabilities(
+        [a, b, c],
+        [
+            Constraint(frozenset({a, b}), 1),
+            Constraint(frozenset({b, c}), 1),
+        ],
+    )
+
+    assert probabilities == {
+        a: 0.5,
+        b: 0.5,
+        c: 0.5,
+    }
 
 
 def test_tightly_constrained_large_component_has_exact_probabilities():

@@ -30,6 +30,15 @@ class Constraint:
     mine_count: int
 
 
+@dataclass
+class ComponentModelCounts:
+    ways_by_mine_count: dict[int, int]
+    mine_hits_by_position_and_mine_count: dict[
+        Position,
+        dict[int, int],
+    ]
+
+
 def frontier_components(constraints: Iterable[Constraint]) -> list[list[Position]]:
     """Return connected frontier-variable components in stable position order."""
     adjacency: dict[Position, set[Position]] = {}
@@ -83,10 +92,10 @@ def _constraints_for_component(
     return related
 
 
-def _enumerate_component_probabilities(
+def _enumerate_component_model_counts(
     variables: list[Position],
     constraints: Iterable[Constraint],
-) -> dict[Position, float] | None:
+) -> ComponentModelCounts | None:
     component_constraints = list(constraints)
     variable_set = set(variables)
     constraint_variables = [
@@ -112,21 +121,25 @@ def _enumerate_component_probabilities(
     unassigned_variables = [
         len(positions) for positions in constraint_variables
     ]
-    valid_count = 0
-    mine_hits = {position: 0 for position in variables}
+    ways_by_mine_count: dict[int, int] = {}
+    mine_hits_by_position_and_mine_count = {
+        position: {} for position in variables
+    }
     assignment: set[Position] = set()
 
     def backtrack(variable_index: int) -> None:
-        nonlocal valid_count
-
         if variable_index == len(ordered_variables):
             if all(
                 assigned_mines[index] == constraint.mine_count
                 for index, constraint in enumerate(component_constraints)
             ):
-                valid_count += 1
+                mine_count = len(assignment)
+                ways_by_mine_count[mine_count] = (
+                    ways_by_mine_count.get(mine_count, 0) + 1
+                )
                 for position in assignment:
-                    mine_hits[position] += 1
+                    mine_hits = mine_hits_by_position_and_mine_count[position]
+                    mine_hits[mine_count] = mine_hits.get(mine_count, 0) + 1
             return
 
         position = ordered_variables[variable_index]
@@ -158,10 +171,34 @@ def _enumerate_component_probabilities(
 
     backtrack(0)
 
-    if valid_count == 0:
+    if not ways_by_mine_count:
         return None
+    return ComponentModelCounts(
+        ways_by_mine_count=ways_by_mine_count,
+        mine_hits_by_position_and_mine_count=(
+            mine_hits_by_position_and_mine_count
+        ),
+    )
+
+
+def _enumerate_component_probabilities(
+    variables: list[Position],
+    constraints: Iterable[Constraint],
+) -> dict[Position, float] | None:
+    model_counts = _enumerate_component_model_counts(variables, constraints)
+    if model_counts is None:
+        return None
+
+    valid_count = sum(model_counts.ways_by_mine_count.values())
     return {
-        position: mine_hits[position] / valid_count
+        position: (
+            sum(
+                model_counts.mine_hits_by_position_and_mine_count[
+                    position
+                ].values()
+            )
+            / valid_count
+        )
         for position in variables
     }
 
