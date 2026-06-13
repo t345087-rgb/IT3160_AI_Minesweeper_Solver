@@ -84,8 +84,21 @@ Module solver chịu trách nhiệm chọn hành động tiếp theo cho AI. Sol
 * Suy luận logic cơ bản.
 * Xác định ô chắc chắn an toàn.
 * Xác định ô chắc chắn có mìn.
-* Ước lượng xác suất trong các trường hợp chưa thể suy luận chắc chắn.
+* Biểu diễn frontier thành graph và tách thành các connected component.
+* Giải CSP độc lập cho từng component nhỏ bằng backtracking có pruning.
+* Ưu tiên biến xuất hiện trong nhiều constraint để prune sớm hơn.
+* Dùng xác suất fallback cho component quá lớn hoặc vô nghiệm.
 * Chọn hành động reveal hoặc flag phù hợp.
+
+Hai biến frontier được nối trong graph khi cùng thuộc một constraint. Với mỗi
+component có không quá `MAX_ENUMERATION_VARIABLES` biến, solver gán từng biến
+là safe hoặc mine và loại sớm nhánh khi số mìn đã gán vượt yêu cầu, hoặc khi số
+biến còn lại không đủ để đạt yêu cầu.
+
+Fallback được tính bằng
+`remaining_mines / hidden_unflagged_cells`. Xác suất giữa các component hiện
+chưa được ràng buộc bởi tổng số mìn trên toàn bàn, nên đây vẫn là một xấp xỉ có
+thể cải tiến.
 
 ### 5.3. Evaluation
 
@@ -103,6 +116,7 @@ Module evaluation dùng để đánh giá solver trên nhiều ván chơi. Các 
 | Wins            | Số ván solver thắng               |
 | Losses          | Số ván solver thua                |
 | Win rate        | Tỉ lệ thắng                       |
+| Average guesses | Số lần đoán trung bình mỗi ván    |
 | Average steps   | Số bước trung bình mỗi ván        |
 | Average flags   | Số ô được cắm cờ trung bình       |
 | Average runtime | Thời gian chạy trung bình mỗi ván |
@@ -201,6 +215,7 @@ Evaluation result
 - Win rate: 100.00%
 - Average steps: 81.00
 - Average flags: 10.00
+- Average guesses: ...
 - Average runtime: 0.020668 seconds
 ```
 
@@ -228,6 +243,18 @@ Chạy evaluation với cấu hình custom:
 python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --mines 10 --games 10
 ```
 
+### Kết quả evaluation hiện có
+
+| Difficulty   | Games | Win rate | Average guesses | Average runtime |
+| ------------ | ----: | -------: | --------------: | --------------: |
+| Beginner     |   100 |      96% |            1.17 |               - |
+| Intermediate |   100 |      75% |            1.73 | khoảng 0.14 giây/game |
+| Expert       |    10 |      30% |            3.60 | khoảng 0.275 giây/game |
+
+Mẫu Expert chỉ có 10 ván nên win rate 30% chưa đủ để kết luận chắc chắn về hiệu
+năng ở độ khó này. Runtime cũng phụ thuộc vào môi trường chạy và nên được xem
+là số liệu tham khảo.
+
 ## 9. Kiểm thử
 
 Project sử dụng `pytest` để kiểm thử tự động.
@@ -241,7 +268,7 @@ python -m pytest
 Kết quả hiện tại:
 
 ```text
-14 passed
+35 passed
 ```
 
 Các test hiện có:
@@ -249,13 +276,13 @@ Các test hiện có:
 | File test                  | Số test | Nội dung chính                                                        |
 | -------------------------- | ------: | --------------------------------------------------------------------- |
 | `tests/test_board.py`      |       8 | Kiểm tra board engine, first-click safety, flag, reveal, visible view |
-| `tests/test_evaluation.py` |       4 | Kiểm tra evaluation, runtime metric và format output                  |
-| `tests/test_solver.py`     |       2 | Kiểm tra solver logic cơ bản                                          |
+| `tests/test_evaluation.py` |       5 | Kiểm tra evaluation, guess/runtime metric và format output            |
+| `tests/test_solver.py`     |      22 | Kiểm tra inference, component-wise CSP, pruning và fallback           |
 
 Tổng cộng:
 
 ```text
-8 + 4 + 2 = 14 tests
+8 + 5 + 22 = 35 tests
 ```
 
 ## 10. Tài liệu liên quan
@@ -263,12 +290,14 @@ Tổng cộng:
 Các tài liệu phụ nằm trong thư mục `docs/`:
 
 ```text
+docs/ALGORITHM.md
 docs/EVALUATION.md
 docs/PHAN_CONG_CONG_VIEC.md
 ```
 
 Trong đó:
 
+* `ALGORITHM.md`: mô tả deterministic inference, component-wise CSP, backtracking, pruning và fallback.
 * `EVALUATION.md`: mô tả kế hoạch đánh giá solver, các chỉ số và cách chạy evaluation.
 * `PHAN_CONG_CONG_VIEC.md`: mô tả phân công công việc trong nhóm.
 
@@ -303,9 +332,10 @@ Project hiện đã có:
 * Board engine hoạt động ổn định.
 * Solver có thể tự động chọn hành động.
 * CLI demo và evaluation.
-* Evaluation có các chỉ số win rate, average steps, average flags và average runtime.
+* Evaluation có các chỉ số win rate, average guesses, average steps, average flags và average runtime.
 * Preset độ khó beginner, intermediate, expert và custom.
-* Test tự động với tổng cộng 14 test.
+* Component-wise CSP với backtracking, early pruning và fallback xác suất.
+* Test tự động với tổng cộng 35 test.
 * Tài liệu evaluation bằng tiếng Việt.
 
 ## 13. Kết luận
