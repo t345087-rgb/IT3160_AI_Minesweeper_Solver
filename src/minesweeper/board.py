@@ -64,11 +64,9 @@ class Board:
             safe = {first_click, *self.neighbors(first_click)}
             filtered_candidates = [p for p in candidates if p not in safe]
             
-            # Khắc phục bẫy Edge Case: Nếu số mìn cấu hình lớn hơn số ô trống còn lại sau khi trừ vùng safe
             if len(filtered_candidates) >= self.mine_count:
                 candidates = filtered_candidates
             else:
-                # Ít nhất bảo vệ duy nhất ô click đầu tiên không có mìn
                 candidates = [p for p in candidates if p != first_click]
 
         self._mine_positions = set(rng.sample(candidates, self.mine_count))
@@ -88,17 +86,14 @@ class Board:
         if self._states[pos.row][pos.col] == CellState.FLAGGED:
             raise ValueError("cannot reveal a flagged cell")
         
-        # Nếu ô đã được mở từ trước, trả về số lượng mìn xung quanh ngay
         if self._states[pos.row][pos.col] == CellState.REVEALED:
             return self._numbers[pos.row][pos.col]
 
-        # Áp dụng thuật toán BFS để loang tự động khi gặp ô số 0 (Flood Fill)
         queue = [pos]
         self._states[pos.row][pos.col] = CellState.REVEALED
 
         while queue:
             curr = queue.pop(0)
-            # Chỉ loang tiếp sang các ô lân cận nếu ô hiện tại là ô trống (0 mìn xung quanh)
             if self._numbers[curr.row][curr.col] == 0:
                 for neighbor in self.neighbors(curr):
                     if self._states[neighbor.row][neighbor.col] == CellState.HIDDEN:
@@ -114,7 +109,6 @@ class Board:
         if self._states[pos.row][pos.col] == CellState.REVEALED:
             raise ValueError("cannot flag a revealed cell")
         
-        # Cập nhật cơ chế Unflag (Gỡ cờ) nếu cắm cờ lại vào ô đã FLAGGED
         if self._states[pos.row][pos.col] == CellState.FLAGGED:
             self._states[pos.row][pos.col] = CellState.HIDDEN
         else:
@@ -130,12 +124,11 @@ class Board:
         return pos in self._mine_positions
 
     def visible_view(self) -> list[list[str]]:
-        """Return the grid view representation, optimized to remove redundancy."""
         view: list[list[str]] = []
         for r in range(self.rows):
             row: list[str] = []
             for c in range(self.cols):
-                st = self._states[r][c]  # Truy xuất trực tiếp ma trận để tối ưu hiệu năng
+                st = self._states[r][c]
                 if st == CellState.HIDDEN:
                     row.append("#")
                 elif st == CellState.FLAGGED:
