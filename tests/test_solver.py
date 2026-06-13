@@ -1,5 +1,10 @@
 from minesweeper.board import Board, Position
-from minesweeper.solver import ActionType, Constraint, MinesweeperSolver
+from minesweeper.solver import (
+    ActionType,
+    Constraint,
+    MinesweeperSolver,
+    frontier_components,
+)
 
 
 def _configured_board(
@@ -20,6 +25,84 @@ def _configured_board(
     for position in flagged or set():
         board.flag(position)
     return board
+
+
+def test_frontier_components_connects_variables_in_same_constraint():
+    first = Position(0, 0)
+    second = Position(0, 1)
+
+    components = frontier_components(
+        [Constraint(frozenset({first, second}), 1)]
+    )
+
+    assert components == [[first, second]]
+
+
+def test_frontier_components_connects_overlapping_constraints_transitively():
+    a = Position(0, 0)
+    b = Position(0, 1)
+    c = Position(0, 2)
+
+    components = frontier_components(
+        [
+            Constraint(frozenset({a, b}), 1),
+            Constraint(frozenset({b, c}), 1),
+        ]
+    )
+
+    assert components == [[a, b, c]]
+
+
+def test_frontier_components_separates_independent_constraint_groups():
+    first_group = {Position(0, 0), Position(0, 1)}
+    second_group = {Position(2, 2), Position(3, 2)}
+
+    components = frontier_components(
+        [
+            Constraint(frozenset(second_group), 1),
+            Constraint(frozenset(first_group), 1),
+        ]
+    )
+
+    assert components == [
+        sorted(first_group, key=lambda p: (p.row, p.col)),
+        sorted(second_group, key=lambda p: (p.row, p.col)),
+    ]
+
+
+def test_frontier_components_includes_single_variable_component():
+    position = Position(1, 2)
+
+    components = frontier_components(
+        [Constraint(frozenset({position}), 0)]
+    )
+
+    assert components == [[position]]
+
+
+def test_frontier_components_has_stable_order():
+    positions = [
+        Position(2, 1),
+        Position(0, 2),
+        Position(2, 0),
+        Position(0, 1),
+    ]
+
+    components = frontier_components(
+        [
+            Constraint(frozenset({positions[0], positions[2]}), 1),
+            Constraint(frozenset({positions[1], positions[3]}), 1),
+        ]
+    )
+
+    assert components == [
+        [Position(0, 1), Position(0, 2)],
+        [Position(2, 0), Position(2, 1)],
+    ]
+
+
+def test_frontier_components_returns_empty_list_without_frontier_variables():
+    assert frontier_components([]) == []
 
 
 def test_solver_returns_an_action_on_new_board():

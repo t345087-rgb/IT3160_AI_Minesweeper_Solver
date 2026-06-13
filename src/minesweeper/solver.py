@@ -27,6 +27,41 @@ class Constraint:
     mine_count: int
 
 
+def frontier_components(constraints: Iterable[Constraint]) -> list[list[Position]]:
+    """Return connected frontier-variable components in stable position order."""
+    adjacency: dict[Position, set[Position]] = {}
+    for constraint in constraints:
+        variables = sorted(constraint.variables, key=lambda p: (p.row, p.col))
+        for position in variables:
+            adjacency.setdefault(position, set())
+        for first, second in combinations(variables, 2):
+            adjacency[first].add(second)
+            adjacency[second].add(first)
+
+    components: list[list[Position]] = []
+    visited: set[Position] = set()
+    for start in sorted(adjacency, key=lambda p: (p.row, p.col)):
+        if start in visited:
+            continue
+
+        component: list[Position] = []
+        stack = [start]
+        visited.add(start)
+        while stack:
+            position = stack.pop()
+            component.append(position)
+            for neighbor in adjacency[position]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    stack.append(neighbor)
+
+        component.sort(key=lambda p: (p.row, p.col))
+        components.append(component)
+
+    components.sort(key=lambda component: (component[0].row, component[0].col))
+    return components
+
+
 class MinesweeperSolver:
     """Solver combining deterministic logic and probability fallback."""
 
