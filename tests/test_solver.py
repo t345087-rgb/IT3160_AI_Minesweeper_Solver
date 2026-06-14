@@ -6,6 +6,7 @@ from minesweeper.solver import (
     Constraint,
     MAX_ENUMERATION_VARIABLES,
     MinesweeperSolver,
+    PROBABILITY_EPSILON,
     _enumerate_component_model_counts,
     _enumerate_component_probabilities,
     frontier_components,
@@ -607,3 +608,123 @@ def test_choose_next_action_prefers_certain_action_before_guessing(monkeypatch):
     assert action.action_type == ActionType.REVEAL
     assert action.position in safe_cells
     assert action.probability == 0.0
+
+
+def _solver_with_probability_estimates(monkeypatch, probabilities):
+    solver = MinesweeperSolver(Board(1, 3, 1))
+    monkeypatch.setattr(solver, "deterministic_actions", lambda: [])
+    monkeypatch.setattr(solver, "subset_inference_actions", lambda: [])
+    monkeypatch.setattr(
+        solver,
+        "probability_estimates",
+        lambda: probabilities,
+    )
+    return solver
+
+
+def test_choose_next_action_flags_probability_one(monkeypatch):
+    mine = Position(0, 0)
+    solver = _solver_with_probability_estimates(
+        monkeypatch,
+        {mine: 1.0, Position(0, 1): 0.4},
+    )
+
+    action = solver.choose_next_action()
+
+    assert action is not None
+    assert action.action_type == ActionType.FLAG
+    assert action.position == mine
+    assert action.probability == 1.0
+    assert "certain mine" in action.reason
+
+
+def test_choose_next_action_reveals_probability_zero(monkeypatch):
+    safe = Position(0, 0)
+    solver = _solver_with_probability_estimates(
+        monkeypatch,
+        {safe: 0.0, Position(0, 1): 0.4},
+    )
+
+    action = solver.choose_next_action()
+
+    assert action is not None
+    assert action.action_type == ActionType.REVEAL
+    assert action.position == safe
+    assert action.probability == 0.0
+    assert "certainly safe" in action.reason
+
+
+def test_choose_next_action_prefers_certain_flag_over_certain_reveal(
+    monkeypatch,
+):
+    safe = Position(0, 0)
+    mine = Position(0, 1)
+    solver = _solver_with_probability_estimates(
+        monkeypatch,
+        {safe: 0.0, mine: 1.0},
+    )
+
+    action = solver.choose_next_action()
+
+    assert action is not None
+    assert action.action_type == ActionType.FLAG
+    assert action.position == mine
+    assert action.probability == 1.0
+
+
+def test_choose_next_action_flags_probability_within_epsilon_of_one(
+    monkeypatch,
+):
+    mine = Position(0, 0)
+    probability = 1.0 - PROBABILITY_EPSILON / 2
+    solver = _solver_with_probability_estimates(
+        monkeypatch,
+        {mine: probability, Position(0, 1): 0.4},
+    )
+
+    action = solver.choose_next_action()
+
+    assert action is not None
+    assert action.action_type == ActionType.FLAG
+    assert action.position == mine
+    assert action.probability == probability
+
+
+def test_choose_next_action_reveals_probability_within_epsilon_of_zero(
+    monkeypatch,
+):
+    safe = Position(0, 0)
+    probability = PROBABILITY_EPSILON / 2
+    solver = _solver_with_probability_estimates(
+        monkeypatch,
+        {safe: probability, Position(0, 1): 0.4},
+    )
+
+    action = solver.choose_next_action()
+
+    assert action is not None
+    assert action.action_type == ActionType.REVEAL
+    assert action.position == safe
+    assert action.probability == probability
+
+
+def test_choose_next_action_reveals_lowest_risk_when_no_probability_is_certain(
+    monkeypatch,
+):
+    lowest_risk = Position(0, 1)
+    solver = _solver_with_probability_estimates(
+        monkeypatch,
+        {
+            Position(0, 0): 0.6,
+            lowest_risk: 0.2,
+            Position(0, 2): 0.4,
+        },
+    )
+
+    action = solver.choose_next_action()
+
+    assert action is not None
+    assert action.action_type == ActionType.REVEAL
+    assert action.position == lowest_risk
+    assert action.probability == 0.2
+    assert action.reason == "lowest estimated mine probability"

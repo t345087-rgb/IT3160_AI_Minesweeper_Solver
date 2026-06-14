@@ -10,6 +10,7 @@ from minesweeper.board import Board, CellState, Position
 
 
 MAX_ENUMERATION_VARIABLES = 20
+PROBABILITY_EPSILON = 1e-12
 
 
 class ActionType(str, Enum):
@@ -488,6 +489,34 @@ class MinesweeperSolver:
 
         probs = self.probability_estimates()
         if probs:
+            certain_mines = [
+                (position, probability)
+                for position, probability in probs.items()
+                if probability >= 1.0 - PROBABILITY_EPSILON
+            ]
+            if certain_mines:
+                position, probability = certain_mines[0]
+                return Action(
+                    ActionType.FLAG,
+                    position,
+                    probability,
+                    "CSP/global probability identifies a certain mine",
+                )
+
+            certain_safe = [
+                (position, probability)
+                for position, probability in probs.items()
+                if probability <= PROBABILITY_EPSILON
+            ]
+            if certain_safe:
+                position, probability = certain_safe[0]
+                return Action(
+                    ActionType.REVEAL,
+                    position,
+                    probability,
+                    "CSP/global probability identifies a certainly safe cell",
+                )
+
             safest = min(probs.items(), key=lambda item: item[1])
             return Action(ActionType.REVEAL, safest[0], safest[1], "lowest estimated mine probability")
 
