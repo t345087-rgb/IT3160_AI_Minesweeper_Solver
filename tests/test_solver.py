@@ -2,6 +2,7 @@ import pytest
 
 from minesweeper.board import Board, Position
 from minesweeper.solver import (
+    Action,
     ActionType,
     Constraint,
     MAX_ENUMERATION_VARIABLES,
@@ -117,6 +118,55 @@ def test_solver_returns_an_action_on_new_board():
     action = solver.choose_next_action()
     assert action is not None
     assert action.action_type in {ActionType.REVEAL, ActionType.FLAG}
+
+
+def test_new_board_uses_informative_center_opening():
+    action = MinesweeperSolver(Board(9, 9, 10)).choose_next_action()
+
+    assert action is not None
+    assert action.action_type == ActionType.REVEAL
+    assert action.position == Position(4, 4)
+    assert action.probability is None
+    assert action.reason == "informative center opening"
+
+
+def test_odd_sized_board_opens_exact_center():
+    action = MinesweeperSolver(Board(7, 5, 5)).choose_next_action()
+
+    assert action is not None
+    assert action.position == Position(3, 2)
+
+
+def test_even_sized_board_opens_at_integer_division_center():
+    action = MinesweeperSolver(Board(16, 30, 99)).choose_next_action()
+
+    assert action is not None
+    assert action.position == Position(8, 15)
+
+
+def test_revealed_board_does_not_force_center_opening(monkeypatch):
+    board = Board(3, 3, 1)
+    board.reveal(Position(0, 0))
+    solver = MinesweeperSolver(board)
+    expected = ActionType.FLAG
+    monkeypatch.setattr(
+        solver,
+        "deterministic_actions",
+        lambda: [
+            Action(
+                expected,
+                Position(0, 1),
+                1.0,
+                "existing strategy",
+            )
+        ],
+    )
+
+    action = solver.choose_next_action()
+
+    assert action is not None
+    assert action.action_type == expected
+    assert action.position == Position(0, 1)
 
 
 def test_probability_estimates_after_first_reveal():
@@ -611,7 +661,9 @@ def test_choose_next_action_prefers_certain_action_before_guessing(monkeypatch):
 
 
 def _solver_with_probability_estimates(monkeypatch, probabilities):
-    solver = MinesweeperSolver(Board(1, 3, 1))
+    board = Board(2, 3, 1)
+    board.flag(Position(1, 0))
+    solver = MinesweeperSolver(board)
     monkeypatch.setattr(solver, "deterministic_actions", lambda: [])
     monkeypatch.setattr(solver, "subset_inference_actions", lambda: [])
     monkeypatch.setattr(

@@ -481,6 +481,23 @@ class MinesweeperSolver:
         return max(0.0, min(1.0, probability))
 
     def choose_next_action(self) -> Action | None:
+        board_has_started = any(
+            self.board.state(position)
+            in {CellState.REVEALED, CellState.FLAGGED}
+            for position in self.board.positions()
+        )
+        if not board_has_started:
+            center = Position(
+                self.board.rows // 2,
+                self.board.cols // 2,
+            )
+            return Action(
+                ActionType.REVEAL,
+                center,
+                None,
+                "informative center opening",
+            )
+
         for strategy in (self.deterministic_actions, self.subset_inference_actions):
             actions = strategy()
             if actions:
