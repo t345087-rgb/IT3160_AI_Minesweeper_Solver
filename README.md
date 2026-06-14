@@ -65,7 +65,7 @@ Module này chịu trách nhiệm mô phỏng bàn chơi Minesweeper, bao gồm:
 
 * Tạo bàn chơi với số hàng, số cột và số mìn tùy chọn.
 * Đặt mìn ngẫu nhiên theo seed.
-* Bảo vệ lượt click đầu tiên để tránh thua ngay lập tức.
+* Bảo vệ lượt click đầu tiên và các ô lân cận khi còn đủ vị trí đặt mìn.
 * Tính số mìn xung quanh mỗi ô.
 * Reveal ô.
 * Flag ô nghi ngờ có mìn.
@@ -85,9 +85,10 @@ Module solver chịu trách nhiệm chọn hành động tiếp theo cho AI. Sol
 * Xác định ô chắc chắn an toàn.
 * Xác định ô chắc chắn có mìn.
 * Biểu diễn frontier thành graph và tách thành các connected component.
-* Giải CSP độc lập cho từng component nhỏ bằng backtracking có pruning.
+* Enumerate chính xác từng component nhỏ bằng backtracking có pruning.
 * Ưu tiên biến xuất hiện trong nhiều constraint để prune sớm hơn.
-* Dùng xác suất fallback cho component quá lớn hoặc vô nghiệm.
+* Dùng xác suất fallback cho component quá lớn, vô nghiệm hoặc khi không thể
+  tạo global valid model.
 * Kết hợp số model theo tổng số mìn của từng component với số mìn còn lại
   trên toàn bàn để tính global mine-count weighting.
 * Chuyển xác suất chắc chắn thành hành động: flag khi xác suất mìn gần `1`,
@@ -104,7 +105,8 @@ Các model hợp lệ của từng component được nhóm theo số mìn, sau 
 tổng số mìn còn lại và số ô ẩn không thuộc frontier. Cách weighting toàn cục này
 loại các tổ hợp không thể xảy ra và tạo marginal probability nhất quán giữa các
 component. Với component quá lớn hoặc vô nghiệm, fallback được tính bằng
-`remaining_mines / hidden_unflagged_cells`.
+`remaining_mines / hidden_unflagged_cells` và clamp vào `[0, 1]`. Chi tiết được
+trình bày trong `docs/ALGORITHM.md`.
 
 ### 5.3. Evaluation
 
@@ -219,28 +221,28 @@ Evaluation result
 - Wins: 5
 - Losses: 0
 - Win rate: 100.00%
-- Average steps: 81.00
-- Average flags: 10.00
-- Average guesses: ...
-- Average runtime: 0.020668 seconds
+- Average steps: 24.20
+- Average flags: 9.80
+- Average guesses: 1.20
+- Average runtime: 0.006034 seconds
 ```
 
 Chạy evaluation với preset beginner:
 
 ```bash
-python -m minesweeper.cli --evaluate --difficulty beginner --games 5
+python -m minesweeper.cli --evaluate --difficulty beginner --games 100
 ```
 
 Chạy evaluation với preset intermediate:
 
 ```bash
-python -m minesweeper.cli --evaluate --difficulty intermediate --games 2 --max-steps 500
+python -m minesweeper.cli --evaluate --difficulty intermediate --games 100 --max-steps 500
 ```
 
 Chạy evaluation với preset expert:
 
 ```bash
-python -m minesweeper.cli --evaluate --difficulty expert --games 1 --max-steps 1000
+python -m minesweeper.cli --evaluate --difficulty expert --games 100 --max-steps 1000
 ```
 
 Chạy evaluation với cấu hình custom:
@@ -251,15 +253,15 @@ python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --min
 
 ### Kết quả evaluation hiện có
 
-| Difficulty   | Games | Win rate | Average guesses | Average runtime |
-| ------------ | ----: | -------: | --------------: | --------------: |
-| Beginner     |   100 |      96% |            1.17 |               - |
-| Intermediate |   100 |      75% |            1.73 | khoảng 0.14 giây/game |
-| Expert       |    10 |      30% |            3.60 | khoảng 0.275 giây/game |
+| Difficulty   | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
+| ------------ | ----: | ---: | -----: | -------: | ---------: | ---------: | -----------: | -----------: |
+| Beginner     |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         1.14 |   0.005918 s |
+| Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         1.55 |   0.072679 s |
+| Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         3.65 |   0.243818 s |
 
-Mẫu Expert chỉ có 10 ván nên win rate 30% chưa đủ để kết luận chắc chắn về hiệu
-năng ở độ khó này. Runtime cũng phụ thuộc vào môi trường chạy và nên được xem
-là số liệu tham khảo.
+Đây là kết quả của một lần chạy với 100 seed mặc định cho mỗi độ khó. Win rate
+và runtime có thể thay đổi theo tập seed và môi trường chạy; xem
+`docs/EVALUATION.md` để biết lệnh benchmark và cách diễn giải.
 
 ## 9. Kiểm thử
 

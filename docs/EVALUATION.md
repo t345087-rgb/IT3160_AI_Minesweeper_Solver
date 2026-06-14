@@ -1,20 +1,10 @@
 # Kế hoạch đánh giá hệ thống
 
-Tài liệu này mô tả cách đánh giá hiệu quả của hệ thống AI Minesweeper Solver.
+Tài liệu này mô tả cách đánh giá AI Minesweeper Solver trên nhiều ván và nhiều
+độ khó. Một lần chạy chỉ là mẫu thực nghiệm; kết quả có thể thay đổi theo seed,
+phiên bản Python, phần cứng và tải hệ thống.
 
-## 1. Mục tiêu đánh giá
-
-Mục tiêu là đo lường khả năng giải bàn Minesweeper của solver trên nhiều ván
-chơi và nhiều độ khó. Do Minesweeper có yếu tố không chắc chắn, một ván đơn lẻ
-không đủ để kết luận solver hoạt động tốt hay không.
-
-Phần đánh giá tập trung vào:
-
-- Độ chính xác: số ván thắng và win rate.
-- Mức độ phải phỏng đoán: average guesses.
-- Hiệu quả thực thi: average runtime trên mỗi ván.
-
-## 2. Các chỉ số đánh giá
+## 1. Các chỉ số đánh giá
 
 | Chỉ số          | Ý nghĩa                                    |
 | --------------- | ------------------------------------------ |
@@ -22,50 +12,57 @@ Phần đánh giá tập trung vào:
 | Wins            | Số ván solver thắng                        |
 | Losses          | Số ván solver thua                         |
 | Win rate        | Tỉ lệ thắng của solver                     |
-| Average guesses | Số lần đoán trung bình trong mỗi ván       |
 | Average steps   | Số bước trung bình trong mỗi ván           |
 | Average flags   | Số ô được cắm cờ trung bình trong mỗi ván  |
-| Average runtime | Thời gian chạy trung bình để xử lý một ván |
+| Average guesses | Số lần đoán trung bình trong mỗi ván       |
+| Average runtime | Thời gian inference trung bình mỗi ván     |
 
-## 3. Kết quả evaluation hiện có
+Một hành động reveal được tính là guess khi xác suất của nó không bằng `0.0`.
+Runtime chỉ đo thời gian `choose_next_action`, không phải toàn bộ thời gian tạo
+board, cập nhật board hoặc in output.
 
-| Difficulty   | Games | Win rate | Average guesses | Average runtime |
-| ------------ | ----: | -------: | --------------: | --------------: |
-| Beginner     |   100 |      96% |            1.17 |               - |
-| Intermediate |   100 |      75% |            1.73 | khoảng 0.14 giây/game |
-| Expert       |    10 |      30% |            3.60 | khoảng 0.275 giây/game |
+## 2. Kết quả benchmark 100 games
 
-Kết quả cho thấy độ khó cao hơn đi kèm win rate thấp hơn và số lần đoán trung
-bình cao hơn trong các lần chạy đã đo. Tuy nhiên, tập Expert chỉ gồm 10 ván,
-nhỏ hơn nhiều so với 100 ván của Beginner và Intermediate. Vì vậy, win rate
-30% của Expert có độ bất định cao và chưa đủ để kết luận chắc chắn về hiệu năng
-thực tế của solver ở độ khó này.
-
-Các số liệu runtime cũng phụ thuộc vào phần cứng, phiên bản Python, tải hệ thống
-và cấu hình chạy. Chúng nên được xem là số liệu tham khảo của lần evaluation
-hiện có, không phải cam kết hiệu năng trên mọi môi trường.
-
-## 4. Cách chạy đánh giá
-
-Chạy lệnh sau từ thư mục gốc của project:
-
-```bash
-python -m minesweeper.cli --evaluate --games 100
-```
-
-Có thể chọn preset độ khó:
+Các lệnh được chạy trên Python 3.12.10 với seed mặc định `0..99`:
 
 ```bash
 python -m minesweeper.cli --evaluate --difficulty beginner --games 100
 python -m minesweeper.cli --evaluate --difficulty intermediate --games 100 --max-steps 500
-python -m minesweeper.cli --evaluate --difficulty expert --games 10 --max-steps 1000
+python -m minesweeper.cli --evaluate --difficulty expert --games 100 --max-steps 1000
 ```
 
-Số lượng ván càng lớn thì ước lượng win rate và average guesses càng ổn định.
-Khi so sánh các phiên bản solver, cần giữ nguyên preset, số ván, seed và giới
-hạn bước.
+| Difficulty   | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
+| ------------ | ----: | ---: | -----: | -------: | ---------: | ---------: | -----------: | -----------: |
+| Beginner     |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         1.14 |   0.005918 s |
+| Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         1.55 |   0.072679 s |
+| Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         3.65 |   0.243818 s |
 
-## 5. Kiểm thử tự động
+Trong lần chạy này, độ khó cao hơn có win rate thấp hơn, đồng thời average
+steps, average guesses và runtime cao hơn. Đây là kết quả của đúng 100 seed đã
+chạy, không phải cam kết rằng mọi lần chạy hoặc mọi tập seed sẽ cho cùng số
+liệu.
+
+## 3. Cách chạy đánh giá
+
+Chạy từ thư mục gốc sau khi cài project:
+
+```bash
+python -m pip install -e .
+python -m minesweeper.cli --evaluate --difficulty beginner --games 100
+```
+
+Có thể chọn các preset hoặc cấu hình custom:
+
+```bash
+python -m minesweeper.cli --evaluate --difficulty intermediate --games 100 --max-steps 500
+python -m minesweeper.cli --evaluate --difficulty expert --games 100 --max-steps 1000
+python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --mines 10 --games 100
+```
+
+Khi so sánh các phiên bản solver, cần giữ nguyên preset, số ván, tập seed và
+`max-steps`.
+
+## 4. Kiểm thử tự động
 
 Chạy toàn bộ test:
 
@@ -73,23 +70,24 @@ Chạy toàn bộ test:
 python -m pytest
 ```
 
-Kết quả kiểm thử hiện tại:
+Kết quả hiện tại:
 
 ```text
-35 passed
+57 passed
 ```
 
-Các test bao phủ board engine, evaluation, deterministic inference, subset
-inference, frontier component discovery, component-wise probability
-enumeration, fallback, backtracking và pruning.
+Test suite gồm 11 board tests, 3 evaluation tests và 43 solver tests. Các test
+solver bao phủ deterministic/subset inference, frontier components,
+component-wise CSP, backtracking/pruning, component model counts, global
+mine-count weighting, fallback, certain-probability actions và center opening.
 
-## 6. Diễn giải kết quả
+## 5. Diễn giải kết quả
 
-Win rate cao hơn cho thấy solver thắng nhiều ván hơn trong cùng điều kiện đánh
-giá. Average guesses thấp hơn cho thấy solver thường cần ít quyết định không
-chắc chắn hơn. Average runtime thấp hơn cho thấy thời gian xử lý mỗi ván ngắn
-hơn, nhưng chỉ nên so sánh trực tiếp khi môi trường chạy tương đương.
+Win rate đo tỉ lệ ván thắng trong mẫu. Average guesses thấp hơn cho thấy solver
+ít phải reveal khi chưa chắc chắn hơn. Average steps và flags mô tả lượng hành
+động của solver, còn average runtime phản ánh chi phí inference trong môi
+trường đo.
 
-Các kết quả quan sát được không tự chứng minh quan hệ nhân quả giữa một thay đổi
-thuật toán và mức cải thiện. Muốn so sánh đáng tin cậy, các phiên bản cần được
-chạy trên cùng tập seed và với kích thước mẫu đủ lớn.
+Các số liệu quan sát không tự chứng minh một thay đổi thuật toán là nguyên nhân
+duy nhất tạo ra khác biệt. So sánh đáng tin cậy cần cùng tập seed, cùng cấu hình
+và môi trường chạy tương đương.
