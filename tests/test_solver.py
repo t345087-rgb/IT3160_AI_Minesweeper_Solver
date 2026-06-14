@@ -202,6 +202,11 @@ def test_probability_estimates_enumerates_two_independent_small_components(monke
     board = Board(2, 3, 1)
     first = {Position(0, 0), Position(0, 1)}
     certain_safe = Position(1, 2)
+    unconstrained = {
+        Position(0, 2),
+        Position(1, 0),
+        Position(1, 1),
+    }
     solver = MinesweeperSolver(board)
     monkeypatch.setattr(
         solver,
@@ -218,7 +223,132 @@ def test_probability_estimates_enumerates_two_independent_small_components(monke
         Position(0, 0): 0.5,
         Position(0, 1): 0.5,
         certain_safe: 0.0,
+        **{position: 0.0 for position in unconstrained},
     }
+
+
+def test_global_remaining_mines_filters_component_mine_count_combinations(
+    monkeypatch,
+):
+    positions = [Position(0, col) for col in range(6)]
+    a, b, c, d, e, f = positions
+    solver = MinesweeperSolver(Board(1, 6, 2))
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [
+            Constraint(frozenset({a, b}), 1),
+            Constraint(frozenset({b, c}), 1),
+            Constraint(frozenset({d, e}), 1),
+            Constraint(frozenset({e, f}), 1),
+        ],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {
+        a: 0.0,
+        b: 1.0,
+        c: 0.0,
+        d: 0.0,
+        e: 1.0,
+        f: 0.0,
+    }
+
+
+def test_global_probabilities_weight_unconstrained_hidden_cells(monkeypatch):
+    a, b, c, first_free, second_free = [
+        Position(0, col) for col in range(5)
+    ]
+    solver = MinesweeperSolver(Board(1, 5, 2))
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [
+            Constraint(frozenset({a, b}), 1),
+            Constraint(frozenset({b, c}), 1),
+        ],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == pytest.approx(
+        {
+            a: 1 / 3,
+            b: 2 / 3,
+            c: 1 / 3,
+            first_free: 1 / 3,
+            second_free: 1 / 3,
+        }
+    )
+
+
+def test_global_probabilities_without_unconstrained_hidden_cells(monkeypatch):
+    a, b, c = [Position(0, col) for col in range(3)]
+    solver = MinesweeperSolver(Board(1, 3, 1))
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [
+            Constraint(frozenset({a, b}), 1),
+            Constraint(frozenset({b, c}), 1),
+        ],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {a: 0.0, b: 1.0, c: 0.0}
+
+
+def test_global_probabilities_when_remaining_mines_is_zero(monkeypatch):
+    a, b, unconstrained = [Position(0, col) for col in range(3)]
+    solver = MinesweeperSolver(Board(1, 3, 0))
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [Constraint(frozenset({a, b}), 0)],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {a: 0.0, b: 0.0, unconstrained: 0.0}
+
+
+def test_no_global_valid_model_uses_component_wise_fallback(monkeypatch):
+    a, b, _ = [Position(0, col) for col in range(3)]
+    solver = MinesweeperSolver(Board(1, 3, 0))
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [Constraint(frozenset({a, b}), 1)],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {a: 0.5, b: 0.5}
+
+
+def test_flagged_cells_are_subtracted_from_global_remaining_mines(monkeypatch):
+    a, b, c, flagged = [Position(0, col) for col in range(4)]
+    board = Board(1, 4, 2)
+    board.flag(flagged)
+    solver = MinesweeperSolver(board)
+    monkeypatch.setattr(
+        solver,
+        "frontier_constraints",
+        lambda: [
+            Constraint(frozenset({a, b}), 1),
+            Constraint(frozenset({b, c}), 1),
+        ],
+    )
+
+    probabilities = solver.probability_estimates()
+
+    assert probabilities == {a: 0.0, b: 1.0, c: 0.0}
+    assert all(
+        0.0 <= probability <= 1.0
+        for probability in probabilities.values()
+    )
 
 
 def test_component_probabilities_with_overlapping_constraints():

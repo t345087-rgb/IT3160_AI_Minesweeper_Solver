@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from itertools import combinations
+from math import comb
 from typing import Iterable
 
 from minesweeper.board import Board, CellState, Position
@@ -203,6 +204,114 @@ def _enumerate_component_probabilities(
     }
 
 
+def _convolve_mine_count_distributions(
+    first: dict[int, int],
+    second: dict[int, int],
+) -> dict[int, int]:
+    result: dict[int, int] = {}
+    for first_mines, first_ways in first.items():
+        for second_mines, second_ways in second.items():
+            mine_count = first_mines + second_mines
+            result[mine_count] = (
+                result.get(mine_count, 0) + first_ways * second_ways
+            )
+    return result
+
+
+def _global_weighted_probabilities(
+    components: list[tuple[list[Position], ComponentModelCounts]],
+    unconstrained_positions: list[Position],
+    remaining_mines: int,
+) -> dict[Position, float] | None:
+    component_count = len(components)
+    prefix_distributions: list[dict[int, int]] = [{0: 1}]
+    for _, model_counts in components:
+        prefix_distributions.append(
+            _convolve_mine_count_distributions(
+                prefix_distributions[-1],
+                model_counts.ways_by_mine_count,
+            )
+        )
+
+    suffix_distributions: list[dict[int, int]] = [
+        {} for _ in range(component_count + 1)
+    ]
+    suffix_distributions[component_count] = {0: 1}
+    for index in range(component_count - 1, -1, -1):
+        suffix_distributions[index] = _convolve_mine_count_distributions(
+            components[index][1].ways_by_mine_count,
+            suffix_distributions[index + 1],
+        )
+
+    unconstrained_count = len(unconstrained_positions)
+
+    def unconstrained_ways(mine_count: int) -> int:
+        if 0 <= mine_count <= unconstrained_count:
+            return comb(unconstrained_count, mine_count)
+        return 0
+
+    all_component_distribution = prefix_distributions[-1]
+    denominator = sum(
+        component_ways
+        * unconstrained_ways(remaining_mines - component_mines)
+        for component_mines, component_ways in all_component_distribution.items()
+    )
+    if denominator == 0:
+        return None
+
+    probabilities: dict[Position, float] = {}
+    for index, (positions, model_counts) in enumerate(components):
+        other_component_distribution = _convolve_mine_count_distributions(
+            prefix_distributions[index],
+            suffix_distributions[index + 1],
+        )
+        for position in positions:
+            numerator = 0
+            for position_component_mines, mine_hits in (
+                model_counts.mine_hits_by_position_and_mine_count[
+                    position
+                ].items()
+            ):
+                for other_mines, other_ways in (
+                    other_component_distribution.items()
+                ):
+                    numerator += (
+                        mine_hits
+                        * other_ways
+                        * unconstrained_ways(
+                            remaining_mines
+                            - position_component_mines
+                            - other_mines
+                        )
+                    )
+            probabilities[position] = numerator / denominator
+
+    if unconstrained_count:
+        expected_unconstrained_mines_numerator = 0
+        for component_mines, component_ways in (
+            all_component_distribution.items()
+        ):
+            unconstrained_mines = remaining_mines - component_mines
+            expected_unconstrained_mines_numerator += (
+                component_ways
+                * unconstrained_mines
+                * unconstrained_ways(unconstrained_mines)
+            )
+        unconstrained_probability = (
+            expected_unconstrained_mines_numerator
+            / denominator
+            / unconstrained_count
+        )
+        probabilities.update(
+            {
+                position: unconstrained_probability
+                for position in unconstrained_positions
+            }
+        )
+
+    return probabilities
+
+
 class MinesweeperSolver:
     """Solver combining deterministic logic and probability fallback."""
 
@@ -267,12 +376,70 @@ class MinesweeperSolver:
         return list(actions.values())
 
     def probability_estimates(self) -> dict[Position, float]:
-        """Estimate frontier mine probabilities component by component."""
+        """Estimate mine probabilities using globally weighted component models."""
         constraints = self.frontier_constraints()
         components = frontier_components(constraints)
         if not components:
             return {}
 
+        flagged_cells = sum(
+            self.board.state(position) == CellState.FLAGGED
+            for position in self.board.positions()
+        )
+        hidden_positions = [
+            position
+            for position in self.board.positions()
+            if self.board.state(position) == CellState.HIDDEN
+        ]
+        remaining_mines = self.board.mine_count - flagged_cells
+        frontier_positions = {
+            position for component in components for position in component
+        }
+        unconstrained_positions = [
+            position
+            for position in hidden_positions
+            if position not in frontier_positions
+        ]
+
+        enumerated_components: list[
+            tuple[list[Position], ComponentModelCounts]
+        ] = []
+        can_use_global_weighting = (
+            0 <= remaining_mines <= len(hidden_positions)
+        )
+        if can_use_global_weighting:
+            for component in components:
+                if len(component) > MAX_ENUMERATION_VARIABLES:
+                    can_use_global_weighting = False
+                    break
+                model_counts = _enumerate_component_model_counts(
+                    component,
+                    _constraints_for_component(component, constraints),
+                )
+                if model_counts is None:
+                    can_use_global_weighting = False
+                    break
+                enumerated_components.append((component, model_counts))
+
+        if can_use_global_weighting:
+            global_probabilities = _global_weighted_probabilities(
+                enumerated_components,
+                unconstrained_positions,
+                remaining_mines,
+            )
+            if global_probabilities is not None:
+                return global_probabilities
+
+        return self._component_wise_probability_fallback(
+            components,
+            constraints,
+        )
+
+    def _component_wise_probability_fallback(
+        self,
+        components: list[list[Position]],
+        constraints: list[Constraint],
+    ) -> dict[Position, float]:
         fallback_probability = self._fallback_probability()
         probabilities: dict[Position, float] = {}
         for component in components:
