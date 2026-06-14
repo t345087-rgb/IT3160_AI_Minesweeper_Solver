@@ -1,3 +1,4 @@
+import pytest
 from minesweeper.board import Board, CellState, Position
 
 
@@ -18,6 +19,12 @@ def test_neighbors_corner_has_three_neighbors():
     board = Board(3, 3, 1, seed=1)
     assert len(board.neighbors(Position(0, 0))) == 3
 
+
+def test_neighbors_edge_has_five_neighbors():
+    board = Board(3, 3, 1, seed=1)
+    assert len(board.neighbors(Position(0, 1))) == 5
+
+
 def test_first_click_also_protects_neighbors():
     board = Board(9, 9, 10, seed=1)
     first = Position(4, 4)
@@ -34,13 +41,21 @@ def test_flag_changes_hidden_cell_to_flagged():
     pos = Position(0, 0)
 
     board.flag(pos)
-
     assert board.state(pos) == CellState.FLAGGED
 
 
-def test_cannot_reveal_flagged_cell():
-    import pytest
+def test_flag_and_unflag_toggle():
+    board = Board(3, 3, 1, seed=1)
+    pos = Position(0, 0)
 
+    board.flag(pos)
+    assert board.state(pos) == CellState.FLAGGED
+
+    board.flag(pos)
+    assert board.state(pos) == CellState.HIDDEN
+
+
+def test_cannot_reveal_flagged_cell():
     board = Board(3, 3, 1, seed=1)
     pos = Position(0, 0)
 
@@ -52,7 +67,6 @@ def test_cannot_reveal_flagged_cell():
 
 def test_visible_view_hides_unrevealed_cells():
     board = Board(3, 3, 1, seed=1)
-
     view = board.visible_view()
 
     assert view == [
@@ -69,4 +83,14 @@ def test_visible_view_shows_revealed_number():
     board.reveal(pos)
     view = board.visible_view()
 
-    assert view[2][2] != "#"
+    expected_number = str(board.number(pos))
+    assert view[2][2] == expected_number
+
+
+def test_reveal_zero_cell_auto_expands():
+    board = Board(rows=3, cols=3, mines=1, seed=42)
+    board.reveal(Position(0, 0))
+
+    assert board.state(Position(0, 1)) == CellState.REVEALED
+    assert board.state(Position(1, 0)) == CellState.REVEALED
+    assert board.state(Position(1, 1)) == CellState.REVEALED

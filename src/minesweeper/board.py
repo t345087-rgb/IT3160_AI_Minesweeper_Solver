@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from random import sample
+import random
 from typing import Iterable
 
 
@@ -57,13 +57,18 @@ class Board:
 
     def initialize(self, first_click: Position | None = None) -> None:
         """Place mines. The optional first click is guaranteed safe."""
-        import random
-
         rng = random.Random(self._seed)
         candidates = list(self.positions())
+        
         if first_click is not None:
             safe = {first_click, *self.neighbors(first_click)}
-            candidates = [p for p in candidates if p not in safe]
+            filtered_candidates = [p for p in candidates if p not in safe]
+            
+            if len(filtered_candidates) >= self.mine_count:
+                candidates = filtered_candidates
+            else:
+                candidates = [p for p in candidates if p != first_click]
+
         self._mine_positions = set(rng.sample(candidates, self.mine_count))
         self._compute_numbers()
         self._initialized = True
@@ -73,21 +78,41 @@ class Board:
             self._numbers[pos.row][pos.col] = sum(n in self._mine_positions for n in self.neighbors(pos))
 
     def reveal(self, pos: Position) -> int:
+        """Reveal a cell and auto-expand if it's a 0 cell (Flood fill using BFS)."""
         if not self.in_bounds(pos):
             raise ValueError("position out of bounds")
         if not self._initialized:
             self.initialize(first_click=pos)
         if self._states[pos.row][pos.col] == CellState.FLAGGED:
             raise ValueError("cannot reveal a flagged cell")
+        
+        if self._states[pos.row][pos.col] == CellState.REVEALED:
+            return self._numbers[pos.row][pos.col]
+
+        queue = [pos]
         self._states[pos.row][pos.col] = CellState.REVEALED
+
+        while queue:
+            curr = queue.pop(0)
+            if self._numbers[curr.row][curr.col] == 0:
+                for neighbor in self.neighbors(curr):
+                    if self._states[neighbor.row][neighbor.col] == CellState.HIDDEN:
+                        self._states[neighbor.row][neighbor.col] = CellState.REVEALED
+                        queue.append(neighbor)
+
         return self._numbers[pos.row][pos.col]
 
     def flag(self, pos: Position) -> None:
+        """Flag a hidden cell, or unflag if it is already flagged."""
         if not self.in_bounds(pos):
             raise ValueError("position out of bounds")
         if self._states[pos.row][pos.col] == CellState.REVEALED:
             raise ValueError("cannot flag a revealed cell")
-        self._states[pos.row][pos.col] = CellState.FLAGGED
+        
+        if self._states[pos.row][pos.col] == CellState.FLAGGED:
+            self._states[pos.row][pos.col] = CellState.HIDDEN
+        else:
+            self._states[pos.row][pos.col] = CellState.FLAGGED
 
     def state(self, pos: Position) -> CellState:
         return self._states[pos.row][pos.col]
@@ -100,18 +125,15 @@ class Board:
 
     def visible_view(self) -> list[list[str]]:
         view: list[list[str]] = []
-        for pos in self.positions():
-            pass
         for r in range(self.rows):
             row: list[str] = []
             for c in range(self.cols):
-                pos = Position(r, c)
-                st = self.state(pos)
+                st = self._states[r][c]
                 if st == CellState.HIDDEN:
                     row.append("#")
                 elif st == CellState.FLAGGED:
                     row.append("F")
                 else:
-                    row.append(str(self.number(pos)))
+                    row.append(str(self._numbers[r][c]))
             view.append(row)
         return view

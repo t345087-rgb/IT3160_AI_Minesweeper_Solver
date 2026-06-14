@@ -88,6 +88,11 @@ Module solver chịu trách nhiệm chọn hành động tiếp theo cho AI. Sol
 * Giải CSP độc lập cho từng component nhỏ bằng backtracking có pruning.
 * Ưu tiên biến xuất hiện trong nhiều constraint để prune sớm hơn.
 * Dùng xác suất fallback cho component quá lớn hoặc vô nghiệm.
+* Kết hợp số model theo tổng số mìn của từng component với số mìn còn lại
+  trên toàn bàn để tính global mine-count weighting.
+* Chuyển xác suất chắc chắn thành hành động: flag khi xác suất mìn gần `1`,
+  reveal khi xác suất mìn gần `0`.
+* Mở ô trung tâm có tính thông tin cao ở trạng thái bàn mới.
 * Chọn hành động reveal hoặc flag phù hợp.
 
 Hai biến frontier được nối trong graph khi cùng thuộc một constraint. Với mỗi
@@ -95,10 +100,11 @@ component có không quá `MAX_ENUMERATION_VARIABLES` biến, solver gán từng
 là safe hoặc mine và loại sớm nhánh khi số mìn đã gán vượt yêu cầu, hoặc khi số
 biến còn lại không đủ để đạt yêu cầu.
 
-Fallback được tính bằng
-`remaining_mines / hidden_unflagged_cells`. Xác suất giữa các component hiện
-chưa được ràng buộc bởi tổng số mìn trên toàn bàn, nên đây vẫn là một xấp xỉ có
-thể cải tiến.
+Các model hợp lệ của từng component được nhóm theo số mìn, sau đó kết hợp với
+tổng số mìn còn lại và số ô ẩn không thuộc frontier. Cách weighting toàn cục này
+loại các tổ hợp không thể xảy ra và tạo marginal probability nhất quán giữa các
+component. Với component quá lớn hoặc vô nghiệm, fallback được tính bằng
+`remaining_mines / hidden_unflagged_cells`.
 
 ### 5.3. Evaluation
 
@@ -268,21 +274,21 @@ python -m pytest
 Kết quả hiện tại:
 
 ```text
-35 passed
+57 passed
 ```
 
 Các test hiện có:
 
 | File test                  | Số test | Nội dung chính                                                        |
 | -------------------------- | ------: | --------------------------------------------------------------------- |
-| `tests/test_board.py`      |       8 | Kiểm tra board engine, first-click safety, flag, reveal, visible view |
-| `tests/test_evaluation.py` |       5 | Kiểm tra evaluation, guess/runtime metric và format output            |
-| `tests/test_solver.py`     |      22 | Kiểm tra inference, component-wise CSP, pruning và fallback           |
+| `tests/test_board.py`      |      11 | Kiểm tra board engine, first-click safety, flag, reveal, visible view |
+| `tests/test_evaluation.py` |       3 | Kiểm tra evaluation, guess/runtime metric và format output            |
+| `tests/test_solver.py`     |      43 | Kiểm tra inference, component-wise CSP, global weighting và actions   |
 
 Tổng cộng:
 
 ```text
-8 + 5 + 22 = 35 tests
+11 + 3 + 43 = 57 tests
 ```
 
 ## 10. Tài liệu liên quan
@@ -297,8 +303,10 @@ docs/PHAN_CONG_CONG_VIEC.md
 
 Trong đó:
 
-* `ALGORITHM.md`: mô tả deterministic inference, component-wise CSP, backtracking, pruning và fallback.
-* `EVALUATION.md`: mô tả kế hoạch đánh giá solver, các chỉ số và cách chạy evaluation.
+* `ALGORITHM.md`: mô tả deterministic inference, component-wise CSP,
+  backtracking, pruning, global mine-count weighting và fallback.
+* `EVALUATION.md`: mô tả kế hoạch, kết quả đánh giá solver, các chỉ số và cách
+  chạy evaluation.
 * `PHAN_CONG_CONG_VIEC.md`: mô tả phân công công việc trong nhóm.
 
 ## 11. Quy trình làm việc với Git
@@ -334,9 +342,11 @@ Project hiện đã có:
 * CLI demo và evaluation.
 * Evaluation có các chỉ số win rate, average guesses, average steps, average flags và average runtime.
 * Preset độ khó beginner, intermediate, expert và custom.
-* Component-wise CSP với backtracking, early pruning và fallback xác suất.
-* Test tự động với tổng cộng 35 test.
-* Tài liệu evaluation bằng tiếng Việt.
+* Component-wise CSP với backtracking, early pruning, global mine-count
+  weighting và fallback xác suất.
+* Hành động chắc chắn từ CSP probability và informative center opening.
+* Test tự động với tổng cộng 57 test.
+* Tài liệu thuật toán và evaluation bằng tiếng Việt.
 
 ## 13. Kết luận
 
