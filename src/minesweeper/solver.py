@@ -3,9 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from itertools import combinations
+from math import comb
 from typing import Iterable
 
 from minesweeper.board import Board, CellState, Position
+
+
+MAX_ENUMERATION_VARIABLES = 20
+PROBABILITY_EPSILON = 1e-12
 
 
 class ActionType(str, Enum):
@@ -25,6 +30,287 @@ class Action:
 class Constraint:
     variables: frozenset[Position]
     mine_count: int
+
+
+@dataclass
+class ComponentModelCounts:
+    ways_by_mine_count: dict[int, int]
+    mine_hits_by_position_and_mine_count: dict[
+        Position,
+        dict[int, int],
+    ]
+
+
+def frontier_components(constraints: Iterable[Constraint]) -> list[list[Position]]:
+    """Return connected frontier-variable components in stable position order."""
+    adjacency: dict[Position, set[Position]] = {}
+    for constraint in constraints:
+        variables = sorted(constraint.variables, key=lambda p: (p.row, p.col))
+        for position in variables:
+            adjacency.setdefault(position, set())
+        for first, second in combinations(variables, 2):
+            adjacency[first].add(second)
+            adjacency[second].add(first)
+
+    components: list[list[Position]] = []
+    visited: set[Position] = set()
+    for start in sorted(adjacency, key=lambda p: (p.row, p.col)):
+        if start in visited:
+            continue
+
+        component: list[Position] = []
+        stack = [start]
+        visited.add(start)
+        while stack:
+            position = stack.pop()
+            component.append(position)
+            for neighbor in adjacency[position]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    stack.append(neighbor)
+
+        component.sort(key=lambda p: (p.row, p.col))
+        components.append(component)
+
+    components.sort(key=lambda component: (component[0].row, component[0].col))
+    return components
+
+
+def _constraints_for_component(
+    component: list[Position],
+    constraints: Iterable[Constraint],
+) -> list[Constraint]:
+    component_variables = set(component)
+    related = [
+        constraint
+        for constraint in constraints
+        if constraint.variables & component_variables
+    ]
+    for constraint in related:
+        if not constraint.variables.issubset(component_variables):
+            raise RuntimeError(
+                "frontier constraint spans multiple connected components"
+            )
+    return related
+
+
+def _enumerate_component_model_counts(
+    variables: list[Position],
+    constraints: Iterable[Constraint],
+) -> ComponentModelCounts | None:
+    component_constraints = list(constraints)
+    variable_set = set(variables)
+    constraint_variables = [
+        constraint.variables & variable_set
+        for constraint in component_constraints
+    ]
+    constraints_by_variable: dict[Position, list[int]] = {
+        position: [] for position in variables
+    }
+    for constraint_index, positions in enumerate(constraint_variables):
+        for position in positions:
+            constraints_by_variable[position].append(constraint_index)
+
+    ordered_variables = sorted(
+        variables,
+        key=lambda position: (
+            -len(constraints_by_variable[position]),
+            position.row,
+            position.col,
+        ),
+    )
+    assigned_mines = [0] * len(component_constraints)
+    unassigned_variables = [
+        len(positions) for positions in constraint_variables
+    ]
+    ways_by_mine_count: dict[int, int] = {}
+    mine_hits_by_position_and_mine_count = {
+        position: {} for position in variables
+    }
+    assignment: set[Position] = set()
+
+    def backtrack(variable_index: int) -> None:
+        if variable_index == len(ordered_variables):
+            if all(
+                assigned_mines[index] == constraint.mine_count
+                for index, constraint in enumerate(component_constraints)
+            ):
+                mine_count = len(assignment)
+                ways_by_mine_count[mine_count] = (
+                    ways_by_mine_count.get(mine_count, 0) + 1
+                )
+                for position in assignment:
+                    mine_hits = mine_hits_by_position_and_mine_count[position]
+                    mine_hits[mine_count] = mine_hits.get(mine_count, 0) + 1
+            return
+
+        position = ordered_variables[variable_index]
+        related_constraints = constraints_by_variable[position]
+        for is_mine in (0, 1):
+            branch_is_valid = True
+            for constraint_index in related_constraints:
+                assigned_mines[constraint_index] += is_mine
+                unassigned_variables[constraint_index] -= 1
+                mine_count = component_constraints[constraint_index].mine_count
+                if (
+                    assigned_mines[constraint_index] > mine_count
+                    or assigned_mines[constraint_index]
+                    + unassigned_variables[constraint_index]
+                    < mine_count
+                ):
+                    branch_is_valid = False
+
+            if branch_is_valid:
+                if is_mine:
+                    assignment.add(position)
+                backtrack(variable_index + 1)
+                if is_mine:
+                    assignment.remove(position)
+
+            for constraint_index in related_constraints:
+                assigned_mines[constraint_index] -= is_mine
+                unassigned_variables[constraint_index] += 1
+
+    backtrack(0)
+
+    if not ways_by_mine_count:
+        return None
+    return ComponentModelCounts(
+        ways_by_mine_count=ways_by_mine_count,
+        mine_hits_by_position_and_mine_count=(
+            mine_hits_by_position_and_mine_count
+        ),
+    )
+
+
+def _enumerate_component_probabilities(
+    variables: list[Position],
+    constraints: Iterable[Constraint],
+) -> dict[Position, float] | None:
+    model_counts = _enumerate_component_model_counts(variables, constraints)
+    if model_counts is None:
+        return None
+
+    valid_count = sum(model_counts.ways_by_mine_count.values())
+    return {
+        position: (
+            sum(
+                model_counts.mine_hits_by_position_and_mine_count[
+                    position
+                ].values()
+            )
+            / valid_count
+        )
+        for position in variables
+    }
+
+
+def _convolve_mine_count_distributions(
+    first: dict[int, int],
+    second: dict[int, int],
+) -> dict[int, int]:
+    result: dict[int, int] = {}
+    for first_mines, first_ways in first.items():
+        for second_mines, second_ways in second.items():
+            mine_count = first_mines + second_mines
+            result[mine_count] = (
+                result.get(mine_count, 0) + first_ways * second_ways
+            )
+    return result
+
+
+def _global_weighted_probabilities(
+    components: list[tuple[list[Position], ComponentModelCounts]],
+    unconstrained_positions: list[Position],
+    remaining_mines: int,
+) -> dict[Position, float] | None:
+    component_count = len(components)
+    prefix_distributions: list[dict[int, int]] = [{0: 1}]
+    for _, model_counts in components:
+        prefix_distributions.append(
+            _convolve_mine_count_distributions(
+                prefix_distributions[-1],
+                model_counts.ways_by_mine_count,
+            )
+        )
+
+    suffix_distributions: list[dict[int, int]] = [
+        {} for _ in range(component_count + 1)
+    ]
+    suffix_distributions[component_count] = {0: 1}
+    for index in range(component_count - 1, -1, -1):
+        suffix_distributions[index] = _convolve_mine_count_distributions(
+            components[index][1].ways_by_mine_count,
+            suffix_distributions[index + 1],
+        )
+
+    unconstrained_count = len(unconstrained_positions)
+
+    def unconstrained_ways(mine_count: int) -> int:
+        if 0 <= mine_count <= unconstrained_count:
+            return comb(unconstrained_count, mine_count)
+        return 0
+
+    all_component_distribution = prefix_distributions[-1]
+    denominator = sum(
+        component_ways
+        * unconstrained_ways(remaining_mines - component_mines)
+        for component_mines, component_ways in all_component_distribution.items()
+    )
+    if denominator == 0:
+        return None
+
+    probabilities: dict[Position, float] = {}
+    for index, (positions, model_counts) in enumerate(components):
+        other_component_distribution = _convolve_mine_count_distributions(
+            prefix_distributions[index],
+            suffix_distributions[index + 1],
+        )
+        for position in positions:
+            numerator = 0
+            for position_component_mines, mine_hits in (
+                model_counts.mine_hits_by_position_and_mine_count[
+                    position
+                ].items()
+            ):
+                for other_mines, other_ways in (
+                    other_component_distribution.items()
+                ):
+                    numerator += (
+                        mine_hits
+                        * other_ways
+                        * unconstrained_ways(
+                            remaining_mines
+                            - position_component_mines
+                            - other_mines
+                        )
+                    )
+            probabilities[position] = numerator / denominator
+
+    if unconstrained_count:
+        expected_unconstrained_mines_numerator = 0
+        for component_mines, component_ways in (
+            all_component_distribution.items()
+        ):
+            unconstrained_mines = remaining_mines - component_mines
+            expected_unconstrained_mines_numerator += (
+                component_ways
+                * unconstrained_mines
+                * unconstrained_ways(unconstrained_mines)
+            )
+        unconstrained_probability = (
+            expected_unconstrained_mines_numerator
+            / denominator
+            / unconstrained_count
+        )
+        probabilities.update(
+            {
+                position: unconstrained_probability
+                for position in unconstrained_positions
+            }
+        )
+
+    return probabilities
 
 
 class MinesweeperSolver:
@@ -91,50 +377,127 @@ class MinesweeperSolver:
         return list(actions.values())
 
     def probability_estimates(self) -> dict[Position, float]:
-        """Estimate mine probability on frontier by enumerating valid assignments.
-
-        This is intentionally simple and suitable for beginner/intermediate boards.
-        Large frontier components can be optimized later by splitting into components
-        or using Gaussian elimination / CSP search.
-        """
+        """Estimate mine probabilities using globally weighted component models."""
         constraints = self.frontier_constraints()
-        variables = sorted({p for con in constraints for p in con.variables}, key=lambda p: (p.row, p.col))
-        if not variables:
+        components = frontier_components(constraints)
+        if not components:
             return {}
-        if len(variables) > 20:
-            flagged_cells = sum(
-                self.board.state(p) == CellState.FLAGGED for p in self.board.positions()
-            )
-            hidden_cells = sum(
-                self.board.state(p) == CellState.HIDDEN for p in self.board.positions()
-            )
-            remaining_mines = self.board.mine_count - flagged_cells
-            base_probability = remaining_mines / hidden_cells if hidden_cells > 0 else 0.0
-            base_probability = max(0.0, min(1.0, base_probability))
-            return {p: base_probability for p in variables}
 
-        valid_count = 0
-        mine_hits = {p: 0 for p in variables}
-        index = {p: i for i, p in enumerate(variables)}
+        flagged_cells = sum(
+            self.board.state(position) == CellState.FLAGGED
+            for position in self.board.positions()
+        )
+        hidden_positions = [
+            position
+            for position in self.board.positions()
+            if self.board.state(position) == CellState.HIDDEN
+        ]
+        remaining_mines = self.board.mine_count - flagged_cells
+        frontier_positions = {
+            position for component in components for position in component
+        }
+        unconstrained_positions = [
+            position
+            for position in hidden_positions
+            if position not in frontier_positions
+        ]
 
-        for mask in range(1 << len(variables)):
-            assignment = {p for i, p in enumerate(variables) if (mask >> i) & 1}
-            ok = True
-            for con in constraints:
-                if sum(p in assignment for p in con.variables) != con.mine_count:
-                    ok = False
+        enumerated_components: list[
+            tuple[list[Position], ComponentModelCounts]
+        ] = []
+        can_use_global_weighting = (
+            0 <= remaining_mines <= len(hidden_positions)
+        )
+        if can_use_global_weighting:
+            for component in components:
+                if len(component) > MAX_ENUMERATION_VARIABLES:
+                    can_use_global_weighting = False
                     break
-            if not ok:
-                continue
-            valid_count += 1
-            for p in assignment:
-                mine_hits[p] += 1
+                model_counts = _enumerate_component_model_counts(
+                    component,
+                    _constraints_for_component(component, constraints),
+                )
+                if model_counts is None:
+                    can_use_global_weighting = False
+                    break
+                enumerated_components.append((component, model_counts))
 
-        if valid_count == 0:
-            return {p: 0.5 for p in variables}
-        return {p: mine_hits[p] / valid_count for p in variables}
+        if can_use_global_weighting:
+            global_probabilities = _global_weighted_probabilities(
+                enumerated_components,
+                unconstrained_positions,
+                remaining_mines,
+            )
+            if global_probabilities is not None:
+                return global_probabilities
+
+        return self._component_wise_probability_fallback(
+            components,
+            constraints,
+        )
+
+    def _component_wise_probability_fallback(
+        self,
+        components: list[list[Position]],
+        constraints: list[Constraint],
+    ) -> dict[Position, float]:
+        fallback_probability = self._fallback_probability()
+        probabilities: dict[Position, float] = {}
+        for component in components:
+            component_constraints = _constraints_for_component(
+                component,
+                constraints,
+            )
+            component_probabilities = None
+            if len(component) <= MAX_ENUMERATION_VARIABLES:
+                component_probabilities = _enumerate_component_probabilities(
+                    component,
+                    component_constraints,
+                )
+
+            if component_probabilities is None:
+                component_probabilities = {
+                    position: fallback_probability for position in component
+                }
+            probabilities.update(component_probabilities)
+
+        return probabilities
+
+    def _fallback_probability(self) -> float:
+        flagged_cells = sum(
+            self.board.state(position) == CellState.FLAGGED
+            for position in self.board.positions()
+        )
+        hidden_unflagged_cells = sum(
+            self.board.state(position) == CellState.HIDDEN
+            for position in self.board.positions()
+        )
+        remaining_mines = self.board.mine_count - flagged_cells
+        probability = (
+            remaining_mines / hidden_unflagged_cells
+            if hidden_unflagged_cells > 0
+            else 0.0
+        )
+        return max(0.0, min(1.0, probability))
 
     def choose_next_action(self) -> Action | None:
+        board_has_started = any(
+            self.board.state(position)
+            in {CellState.REVEALED, CellState.FLAGGED}
+            for position in self.board.positions()
+        )
+        if not board_has_started:
+            center = Position(
+                self.board.rows // 2,
+                self.board.cols // 2,
+            )
+            return Action(
+                ActionType.REVEAL,
+                center,
+                None,
+                "informative center opening",
+            )
+
         for strategy in (self.deterministic_actions, self.subset_inference_actions):
             actions = strategy()
             if actions:
@@ -143,6 +506,34 @@ class MinesweeperSolver:
 
         probs = self.probability_estimates()
         if probs:
+            certain_mines = [
+                (position, probability)
+                for position, probability in probs.items()
+                if probability >= 1.0 - PROBABILITY_EPSILON
+            ]
+            if certain_mines:
+                position, probability = certain_mines[0]
+                return Action(
+                    ActionType.FLAG,
+                    position,
+                    probability,
+                    "CSP/global probability identifies a certain mine",
+                )
+
+            certain_safe = [
+                (position, probability)
+                for position, probability in probs.items()
+                if probability <= PROBABILITY_EPSILON
+            ]
+            if certain_safe:
+                position, probability = certain_safe[0]
+                return Action(
+                    ActionType.REVEAL,
+                    position,
+                    probability,
+                    "CSP/global probability identifies a certainly safe cell",
+                )
+
             safest = min(probs.items(), key=lambda item: item[1])
             return Action(ActionType.REVEAL, safest[0], safest[1], "lowest estimated mine probability")
 
