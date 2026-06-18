@@ -85,8 +85,12 @@ class Board:
             self.initialize(first_click=pos)
         if self._states[pos.row][pos.col] == CellState.FLAGGED:
             raise ValueError("cannot reveal a flagged cell")
-        
+
         if self._states[pos.row][pos.col] == CellState.REVEALED:
+            return self._numbers[pos.row][pos.col]
+
+        if pos in self._mine_positions:
+            self._states[pos.row][pos.col] = CellState.REVEALED
             return self._numbers[pos.row][pos.col]
 
         queue = [pos]
@@ -114,6 +118,10 @@ class Board:
         else:
             self._states[pos.row][pos.col] = CellState.FLAGGED
 
+    def toggle_flag(self, pos: Position) -> None:
+        """Compatibility alias used by interactive UI code."""
+        self.flag(pos)
+
     def state(self, pos: Position) -> CellState:
         return self._states[pos.row][pos.col]
 
@@ -122,6 +130,32 @@ class Board:
 
     def has_mine(self, pos: Position) -> bool:
         return pos in self._mine_positions
+
+    def is_lost(self) -> bool:
+        """Return True if a mined cell has been revealed."""
+        if not self._initialized:
+            return False
+
+        return any(
+            self.state(pos) == CellState.REVEALED and self.has_mine(pos)
+            for pos in self.positions()
+        )
+
+    def is_won(self) -> bool:
+        """Return True when all safe cells are revealed or all mines are flagged."""
+        if not self._initialized or self.is_lost():
+            return False
+
+        all_safe_revealed = True
+        all_mines_flagged = True
+        for pos in self.positions():
+            if self.has_mine(pos):
+                if self.state(pos) != CellState.FLAGGED:
+                    all_mines_flagged = False
+            elif self.state(pos) != CellState.REVEALED:
+                all_safe_revealed = False
+
+        return all_safe_revealed or all_mines_flagged
 
     def visible_view(self) -> list[list[str]]:
         view: list[list[str]] = []

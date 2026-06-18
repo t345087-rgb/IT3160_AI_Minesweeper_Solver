@@ -55,6 +55,17 @@ def test_flag_and_unflag_toggle():
     assert board.state(pos) == CellState.HIDDEN
 
 
+def test_toggle_flag_alias_matches_flag_toggle():
+    board = Board(3, 3, 1, seed=1)
+    pos = Position(0, 0)
+
+    board.toggle_flag(pos)
+    assert board.state(pos) == CellState.FLAGGED
+
+    board.toggle_flag(pos)
+    assert board.state(pos) == CellState.HIDDEN
+
+
 def test_cannot_reveal_flagged_cell():
     board = Board(3, 3, 1, seed=1)
     pos = Position(0, 0)
@@ -94,3 +105,43 @@ def test_reveal_zero_cell_auto_expands():
     assert board.state(Position(0, 1)) == CellState.REVEALED
     assert board.state(Position(1, 0)) == CellState.REVEALED
     assert board.state(Position(1, 1)) == CellState.REVEALED
+
+
+def test_reveal_mine_marks_loss_without_auto_expanding_neighbors():
+    board = Board(rows=3, cols=3, mines=1)
+    mine = Position(1, 1)
+    board._mine_positions = {mine}
+    board._compute_numbers()
+    board._initialized = True
+
+    board.reveal(mine)
+
+    assert board.is_lost()
+    assert board.state(mine) == CellState.REVEALED
+    assert board.state(Position(0, 0)) == CellState.HIDDEN
+
+
+def test_is_won_when_all_safe_cells_are_revealed():
+    board = Board(rows=2, cols=2, mines=1)
+    mine = Position(0, 0)
+    board._mine_positions = {mine}
+    board._compute_numbers()
+    board._initialized = True
+
+    board.reveal(Position(0, 1))
+    board.reveal(Position(1, 0))
+    board.reveal(Position(1, 1))
+
+    assert board.is_won()
+
+
+def test_is_won_when_all_mines_are_flagged():
+    board = Board(rows=2, cols=2, mines=1)
+    mine = Position(0, 0)
+    board._mine_positions = {mine}
+    board._compute_numbers()
+    board._initialized = True
+
+    board.flag(mine)
+
+    assert board.is_won()

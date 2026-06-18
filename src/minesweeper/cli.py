@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import builtins
 
-from rich.console import Console
-from rich.table import Table
+try:
+    from rich.console import Console
+    from rich.table import Table
+except ModuleNotFoundError:
+    Table = None
+
+    class Console:  # type: ignore[no-redef]
+        """Tiny fallback so the CLI demo still runs without rich installed."""
+
+        def print(self, message: object = "") -> None:
+            builtins.print(message)
 
 from minesweeper.board import Board
 from minesweeper.evaluation import evaluate_solver, format_evaluation_result
@@ -28,6 +38,11 @@ def resolve_board_config(args: argparse.Namespace) -> tuple[int, int, int]:
 
 
 def render(board: Board) -> None:
+    if Table is None:
+        for row in board.visible_view():
+            console.print(" ".join(row))
+        return
+
     table = Table(show_header=False, box=None)
     for _ in range(board.cols):
         table.add_column(justify="center")
