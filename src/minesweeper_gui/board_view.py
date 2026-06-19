@@ -10,7 +10,6 @@ from minesweeper.board import Board, CellState, Position
 # Cell colors
 HIDDEN_COLOR = QColor("#cccccc")
 REVEALED_COLOR = QColor("#ffffff")
-FLAG_COLOR = QColor("#ff6666")
 MINE_COLOR = QColor("#333333")
 
 # Number colors
@@ -74,17 +73,19 @@ class BoardView(QWidget):
                 pos = Position(row, col)
                 x = col * CELL_SIZE + GRID_LINE_WIDTH
                 y = row * CELL_SIZE + GRID_LINE_WIDTH
-                cell_rect = QColor(0, 0, 0, 0)
                 painter.fillRect(
                     x, y, CELL_SIZE, CELL_SIZE, self._get_cell_color(pos)
                 )
 
                 # Draw grid border
                 painter.setPen(QPen(Qt.GlobalColor.black, GRID_LINE_WIDTH))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(x, y, CELL_SIZE, CELL_SIZE)
 
                 # Draw cell content
+                painter.save()
                 self._draw_cell_content(painter, pos, x, y)
+                painter.restore()
 
     def _get_cell_color(self, pos: Position) -> QColor:
         """Get the background color for a cell."""
@@ -94,8 +95,6 @@ class BoardView(QWidget):
         state = self._board.state(pos)
         if state == CellState.REVEALED:
             return REVEALED_COLOR
-        elif state == CellState.FLAGGED:
-            return FLAG_COLOR
         else:
             return HIDDEN_COLOR
 
