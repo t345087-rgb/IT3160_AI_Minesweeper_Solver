@@ -1,42 +1,63 @@
 # AI Minesweeper Solver
 
-## 1. Giới thiệu
+AI Minesweeper Solver là project xây dựng một tác tử AI có khả năng chơi và giải trò chơi **Minesweeper**. Project được thực hiện trong khuôn khổ môn **Nhập môn Trí tuệ nhân tạo**.
 
-**AI Minesweeper Solver** là project xây dựng một tác tử AI có khả năng chơi và giải trò chơi Minesweeper. Project được thực hiện trong khuôn khổ môn **Nhập môn Trí tuệ nhân tạo**.
+Minesweeper là một bài toán phù hợp để mô phỏng suy luận logic và ra quyết định trong điều kiện không chắc chắn. Solver trong project này kết hợp các luật suy luận chắc chắn, suy luận theo constraint, CSP theo từng component và đánh giá xác suất để chọn hành động tiếp theo.
 
-Minesweeper là một trò chơi có yếu tố suy luận logic và ra quyết định trong điều kiện không chắc chắn. Người chơi cần dựa vào các con số trên bàn để xác định ô nào an toàn và ô nào có mìn. Trong nhiều tình huống, solver có thể suy luận chắc chắn; tuy nhiên, cũng có những trạng thái cần đánh giá xác suất để đưa ra lựa chọn hợp lý.
+---
 
-Project này tập trung vào việc mô phỏng bàn chơi, xây dựng solver, chạy đánh giá tự động và đo lường hiệu quả của thuật toán.
+## 1. Tính năng chính
 
-## 2. Mục tiêu project
+* Mô phỏng bàn chơi Minesweeper với cơ chế mở ô, cắm cờ, kiểm tra thắng/thua.
+* Đảm bảo lượt mở đầu tiên an toàn, đồng thời ưu tiên mở ô trung tâm để tạo nhiều thông tin ban đầu hơn.
+* Solver tự động chọn hành động `reveal` hoặc `flag`.
+* Hỗ trợ deterministic inference, subset inference, component-wise CSP và probability fallback.
+* Có CLI để chạy demo hoặc đánh giá solver trên nhiều ván.
+* Có GUI bằng PySide6 để quan sát AI chơi trực quan.
+* Có test tự động bằng `pytest`.
+* Có tài liệu riêng cho thuật toán, evaluation, demo và phân công công việc.
 
-Project hướng tới các mục tiêu chính sau:
+---
 
-* Mô phỏng đầy đủ bàn chơi Minesweeper.
-* Xây dựng AI solver có khả năng chọn hành động tự động.
-* Áp dụng suy luận logic để tìm ô an toàn hoặc ô chắc chắn có mìn.
-* Sử dụng đánh giá xác suất trong các tình huống không chắc chắn.
-* Chạy evaluation trên nhiều ván chơi để đo hiệu quả của solver.
-* Cung cấp CLI để demo và đánh giá solver ở nhiều độ khó khác nhau.
-* Cung cấp GUI để quan sát solver chạy trên bàn Minesweeper.
-* Viết test tự động để kiểm tra độ ổn định của các module chính.
+## 2. Thành viên nhóm
 
-## 3. Thành viên nhóm
+| Thành viên           | Vai trò chính                                 |
+| -------------------- | --------------------------------------------- |
+| Nguyễn Hữu Chính     | Solver logic, suy luận AI, CSP                |
+| Hoàng Thị Thu Phương | Board engine, simulation, evaluation          |
+| Nguyễn Đăng Cao Tuấn | CLI, GUI/demo, tài liệu, kiểm thử và tích hợp |
 
-| Thành viên           | Vai trò chính                        |
-| -------------------- | ------------------------------------ |
-| Nguyễn Hữu Chính     | Solver logic, suy luận AI            |
-| Hoàng Thị Thu Phương | Board engine, simulation, evaluation |
-| Nguyễn Đăng Cao Tuấn | CLI, tài liệu, kiểm thử và tích hợp  |
+---
+
+## 3. Công nghệ sử dụng
+
+| Thành phần       | Công nghệ                  |
+| ---------------- | -------------------------- |
+| Ngôn ngữ chính   | Python                     |
+| CLI              | argparse, rich             |
+| GUI              | PySide6                    |
+| Testing          | pytest                     |
+| Đóng gói project | pyproject.toml, setuptools |
+
+Yêu cầu Python: **Python 3.10 trở lên**.
+
+---
 
 ## 4. Cấu trúc thư mục
 
 ```text
-AI_Minesweeper_Solver/
+IT3160_AI_Minesweeper_Solver/
+├── .github/
+│   └── workflows/
 ├── docs/
-│   ├── DEMO_GUIDE.md
+│   ├── ALGORITHM.md
 │   ├── EVALUATION.md
-│   └── PHAN_CONG_CONG_VIEC.md
+│   ├── FINAL_REPORT_OUTLINE.md
+│   ├── PHAN_CONG_CONG_VIEC.md
+│   ├── PROJECT_PROPOSAL.md
+│   └── SPRINT_PLAN.md
+├── examples/
+│   └── demo_commands.md
 ├── src/
 │   ├── minesweeper/
 │   │   ├── __init__.py
@@ -50,15 +71,19 @@ AI_Minesweeper_Solver/
 │       ├── board_view.py
 │       ├── control_panel.py
 │       ├── game_loop.py
-│       └── main_window.py
+│       ├── main_window.py
+│       └── resources/
 ├── tests/
 │   ├── test_board.py
 │   ├── test_evaluation.py
 │   └── test_solver.py
-├── requirements.txt
+├── DEMO_GUIDE.md
+├── README.md
 ├── pyproject.toml
-└── README.md
+└── requirements.txt
 ```
+
+---
 
 ## 5. Các module chính
 
@@ -70,15 +95,14 @@ File chính:
 src/minesweeper/board.py
 ```
 
-Module này chịu trách nhiệm mô phỏng bàn chơi Minesweeper, bao gồm:
+Module này chịu trách nhiệm mô phỏng bàn chơi Minesweeper:
 
-* Tạo bàn chơi với số hàng, số cột và số mìn tùy chọn.
-* Đặt mìn ngẫu nhiên theo seed.
-* Bảo vệ lượt click đầu tiên và các ô lân cận khi còn đủ vị trí đặt mìn.
+* Tạo bàn chơi theo số hàng, số cột và số mìn.
+* Đặt mìn theo seed để có thể tái lập kết quả.
+* Đảm bảo ô mở đầu tiên an toàn.
 * Tính số mìn xung quanh mỗi ô.
-* Reveal ô.
-* Flag ô nghi ngờ có mìn.
-* Trả về trạng thái hiển thị của bàn chơi.
+* Quản lý trạng thái ô: `hidden`, `revealed`, `flagged`.
+* Hỗ trợ reveal, flag, kiểm tra thắng/thua và tạo view hiển thị.
 
 ### 5.2. Solver
 
@@ -88,34 +112,21 @@ File chính:
 src/minesweeper/solver.py
 ```
 
-Module solver chịu trách nhiệm chọn hành động tiếp theo cho AI. Solver sử dụng các chiến lược như:
+Solver chọn hành động tiếp theo dựa trên các chiến lược:
 
-* Suy luận logic cơ bản.
-* Xác định ô chắc chắn an toàn.
-* Xác định ô chắc chắn có mìn.
-* Biểu diễn frontier thành graph và tách thành các connected component.
-* Enumerate chính xác từng component nhỏ bằng backtracking có pruning.
-* Ưu tiên biến xuất hiện trong nhiều constraint để prune sớm hơn.
-* Dùng xác suất fallback cho component quá lớn, vô nghiệm hoặc khi không thể
-  tạo global valid model.
-* Kết hợp số model theo tổng số mìn của từng component với số mìn còn lại
-  trên toàn bàn để tính global mine-count weighting.
-* Chuyển xác suất chắc chắn thành hành động: flag khi xác suất mìn gần `1`,
-  reveal khi xác suất mìn gần `0`.
-* Mở ô trung tâm có tính thông tin cao ở trạng thái bàn mới.
-* Chọn hành động reveal hoặc flag phù hợp.
+* **Deterministic inference**: dùng luật chắc chắn của Minesweeper.
+* **Subset inference**: suy ra constraint mới khi một tập biến là tập con của tập khác.
+* **Frontier component discovery**: tách frontier thành các component độc lập.
+* **Component-wise CSP**: enumerate các assignment hợp lệ cho component nhỏ bằng backtracking có pruning.
+* **Global mine-count weighting**: kết hợp số model của các component với tổng số mìn còn lại trên toàn bàn.
+* **Probability fallback**: dùng xác suất xấp xỉ khi component quá lớn, vô nghiệm hoặc không thể tính global model.
+* **Action selection**: flag ô chắc chắn có mìn, reveal ô chắc chắn an toàn, hoặc chọn ô có xác suất mìn thấp nhất.
 
-Hai biến frontier được nối trong graph khi cùng thuộc một constraint. Với mỗi
-component có không quá `MAX_ENUMERATION_VARIABLES` biến, solver gán từng biến
-là safe hoặc mine và loại sớm nhánh khi số mìn đã gán vượt yêu cầu, hoặc khi số
-biến còn lại không đủ để đạt yêu cầu.
+Giới hạn hiện tại của enumeration:
 
-Các model hợp lệ của từng component được nhóm theo số mìn, sau đó kết hợp với
-tổng số mìn còn lại và số ô ẩn không thuộc frontier. Cách weighting toàn cục này
-loại các tổ hợp không thể xảy ra và tạo marginal probability nhất quán giữa các
-component. Với component quá lớn hoặc vô nghiệm, fallback được tính bằng
-`remaining_mines / hidden_unflagged_cells` và clamp vào `[0, 1]`. Chi tiết được
-trình bày trong `docs/ALGORITHM.md`.
+```text
+MAX_ENUMERATION_VARIABLES = 20
+```
 
 ### 5.3. Evaluation
 
@@ -125,22 +136,18 @@ File chính:
 src/minesweeper/evaluation.py
 ```
 
-Module evaluation dùng để đánh giá solver trên nhiều ván chơi. Các chỉ số hiện có:
+Module evaluation chạy solver trên nhiều ván và tính các chỉ số:
 
-| Chỉ số          | Ý nghĩa                           |
-| --------------- | --------------------------------- |
-| Games           | Tổng số ván được đánh giá         |
-| Wins            | Số ván solver thắng               |
-| Losses          | Số ván solver thua                |
-| Win rate        | Tỉ lệ thắng                       |
-| Average guesses | Số lần đoán trung bình mỗi ván    |
-| Average steps   | Số bước trung bình mỗi ván        |
-| Average flags   | Số ô được cắm cờ trung bình       |
-| Average runtime | Thời gian chạy trung bình mỗi ván |
-
-Với metric guess hiện tại, `probability=None` trên hành động reveal được tính
-là một guess vì solver không có estimate. Center opening dùng `probability=0.0`
-vì Board đảm bảo lượt mở đầu tiên là an toàn.
+| Chỉ số          | Ý nghĩa                                |
+| --------------- | -------------------------------------- |
+| Games           | Tổng số ván được đánh giá              |
+| Wins            | Số ván solver thắng                    |
+| Losses          | Số ván solver thua                     |
+| Win rate        | Tỉ lệ thắng                            |
+| Average steps   | Số bước trung bình mỗi ván             |
+| Average flags   | Số ô được cắm cờ trung bình            |
+| Average guesses | Số lần đoán trung bình mỗi ván         |
+| Average runtime | Thời gian inference trung bình mỗi ván |
 
 ### 5.4. CLI
 
@@ -150,37 +157,33 @@ File chính:
 src/minesweeper/cli.py
 ```
 
-CLI hỗ trợ hai chế độ:
+CLI hỗ trợ:
 
-* Chạy demo một ván chơi.
-* Chạy evaluation trên nhiều ván.
-
-CLI cũng hỗ trợ các preset độ khó:
-
-| Difficulty   |         Kích thước bàn |                 Số mìn |
-| ------------ | ---------------------: | ---------------------: |
-| beginner     |                  9 x 9 |                     10 |
-| intermediate |                16 x 16 |                     40 |
-| expert       |                16 x 30 |                     99 |
-| custom       | Tùy chỉnh bằng tham số | Tùy chỉnh bằng tham số |
+* Chạy demo một ván.
+* Chạy evaluation nhiều ván.
+* Chọn preset độ khó: `beginner`, `intermediate`, `expert`.
+* Chạy cấu hình custom bằng `--rows`, `--cols`, `--mines`.
 
 ### 5.5. GUI
 
-File chính:
+Thư mục chính:
 
 ```text
-src/minesweeper_gui/app.py
+src/minesweeper_gui/
 ```
 
-GUI hỗ trợ tạo ván mới, chọn độ khó, thao tác thủ công trên bàn và chạy solver
-trong background thread để quan sát từng bước giải.
+GUI được xây dựng bằng PySide6, hỗ trợ:
+
+* Hiển thị bàn chơi trực quan.
+* Chọn độ khó.
+* Bắt đầu/dừng solver.
+* Điều chỉnh tốc độ solver.
+* Chơi thủ công bằng click chuột.
+* Theo dõi số mìn, số flag và số ô đã mở trên status bar.
+
+---
 
 ## 6. Cài đặt
-
-Yêu cầu:
-
-* Python 3.12 hoặc tương thích.
-* pip.
 
 Clone repository:
 
@@ -189,78 +192,110 @@ git clone https://github.com/t345087-rgb/IT3160_AI_Minesweeper_Solver.git
 cd IT3160_AI_Minesweeper_Solver
 ```
 
+Tạo môi trường ảo nếu cần:
+
+```bash
+python -m venv .venv
+```
+
+Kích hoạt môi trường ảo trên Windows:
+
+```bash
+.venv\Scripts\activate
+```
+
+Kích hoạt môi trường ảo trên macOS/Linux:
+
+```bash
+source .venv/bin/activate
+```
+
 Cài dependencies:
 
 ```bash
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-```
-
-Cài project ở chế độ editable:
-
-```bash
 python -m pip install -e .
 ```
 
-## 7. Cách chạy demo
-
-Chạy demo với cấu hình mặc định:
+Sau khi cài editable, có thể chạy project bằng cả hai kiểu:
 
 ```bash
 python -m minesweeper.cli
 ```
 
-Chạy demo với cấu hình tùy chỉnh:
+hoặc:
 
 ```bash
-python -m minesweeper.cli --rows 9 --cols 9 --mines 10 --steps 30 --seed 7
+minesweeper
 ```
 
-Chạy demo với preset độ khó:
+---
+
+## 7. Chạy CLI demo
+
+Chạy demo mặc định:
+
+```bash
+python -m minesweeper.cli
+```
+
+Chạy demo với preset beginner:
 
 ```bash
 python -m minesweeper.cli --difficulty beginner
 ```
 
-```bash
-python -m minesweeper.cli --difficulty intermediate
-```
+Chạy demo với preset intermediate:
 
 ```bash
-python -m minesweeper.cli --difficulty expert
+python -m minesweeper.cli --difficulty intermediate --steps 100
 ```
 
-Chạy GUI:
+Chạy demo với preset expert:
 
 ```bash
-python -m minesweeper_gui.app
+python -m minesweeper.cli --difficulty expert --steps 200
 ```
 
-Nếu đã cài editable, có thể chạy bằng entry point:
+Chạy demo với cấu hình custom:
+
+```bash
+python -m minesweeper.cli --difficulty custom --rows 9 --cols 9 --mines 10 --steps 30 --seed 7
+```
+
+Nếu đã cài editable, có thể dùng lệnh ngắn hơn:
+
+```bash
+minesweeper --difficulty beginner
+```
+
+---
+
+## 8. Chạy GUI
+
+Sau khi cài project ở chế độ editable, chạy:
 
 ```bash
 minesweeper-gui
 ```
 
-## 8. Cách chạy evaluation
+Hoặc chạy trực tiếp bằng module:
+
+```bash
+python -m minesweeper_gui.app
+```
+
+Trong GUI, người dùng có thể chọn độ khó, tạo ván mới, chơi thủ công hoặc nhấn **Start Solver** để AI tự động chơi.
+
+---
+
+## 9. Chạy evaluation
 
 Chạy evaluation mặc định:
 
 ```bash
-python -m minesweeper.cli --evaluate --games 5
-```
-
-Ví dụ output:
-
-```text
-Evaluation result
-- Games: 5
-- Wins: 5
-- Losses: 0
-- Win rate: 100.00%
-- Average steps: 24.20
-- Average flags: 9.80
-- Average guesses: 0.20
-- Average runtime: 0.006049 seconds
+python -m minesweeper.cli --evaluate --games 100
 ```
 
 Chạy evaluation với preset beginner:
@@ -284,10 +319,28 @@ python -m minesweeper.cli --evaluate --difficulty expert --games 100 --max-steps
 Chạy evaluation với cấu hình custom:
 
 ```bash
-python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --mines 10 --games 10
+python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --mines 10 --games 100
 ```
 
-### Kết quả evaluation hiện có
+Ví dụ output:
+
+```text
+Evaluation result
+- Games: 100
+- Wins: 98
+- Losses: 2
+- Win rate: 98.00%
+- Average steps: 24.40
+- Average flags: 9.82
+- Average guesses: 0.14
+- Average runtime: 0.006662 seconds
+```
+
+---
+
+## 10. Kết quả benchmark hiện tại
+
+Kết quả dưới đây được ghi nhận khi chạy 100 games với seed mặc định `0..99`:
 
 | Difficulty   | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
 | ------------ | ----: | ---: | -----: | -------: | ---------: | ---------: | -----------: | -----------: |
@@ -295,11 +348,11 @@ python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --min
 | Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         0.55 |   0.079003 s |
 | Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         2.65 |   0.250324 s |
 
-Đây là kết quả của một lần chạy với 100 seed mặc định cho mỗi độ khó. Win rate
-và runtime có thể thay đổi theo tập seed và môi trường chạy; xem
-`docs/EVALUATION.md` để biết lệnh benchmark và cách diễn giải.
+Kết quả có thể thay đổi theo seed, phiên bản Python, phần cứng và tải hệ thống. Khi so sánh các phiên bản solver, cần giữ nguyên preset, số ván, tập seed và `max-steps`.
 
-## 9. Kiểm thử
+---
+
+## 11. Kiểm thử
 
 Project sử dụng `pytest` để kiểm thử tự động.
 
@@ -315,13 +368,13 @@ Kết quả hiện tại:
 70 passed
 ```
 
-Các test hiện có:
+Phân bố test:
 
-| File test                  | Số test | Nội dung chính                                                        |
-| -------------------------- | ------: | --------------------------------------------------------------------- |
-| `tests/test_board.py`      |      16 | Kiểm tra board engine, first-click safety, flag, reveal, visible view |
-| `tests/test_evaluation.py` |      11 | Kiểm tra evaluation, guess/runtime metric và format output            |
-| `tests/test_solver.py`     |      43 | Kiểm tra inference, component-wise CSP, global weighting và actions   |
+| File test                  | Số test | Nội dung chính                                                                               |
+| -------------------------- | ------: | -------------------------------------------------------------------------------------------- |
+| `tests/test_board.py`      |      16 | Board engine, first-click safety, reveal, flag, visible view, win/loss                       |
+| `tests/test_evaluation.py` |      11 | Evaluation result, guess counting, runtime metric, format output                             |
+| `tests/test_solver.py`     |      43 | Deterministic inference, subset inference, CSP, global weighting, fallback, action selection |
 
 Tổng cộng:
 
@@ -329,28 +382,33 @@ Tổng cộng:
 16 + 11 + 43 = 70 tests
 ```
 
-## 10. Tài liệu liên quan
+---
+
+## 12. Tài liệu liên quan
 
 Các tài liệu phụ nằm trong thư mục `docs/`:
 
-```text
-docs/ALGORITHM.md
-docs/DEMO_GUIDE.md
-docs/EVALUATION.md
-docs/PHAN_CONG_CONG_VIEC.md
-```
+| File                           | Nội dung                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------- |
+| `docs/ALGORITHM.md`            | Mô tả deterministic inference, subset inference, CSP, pruning, global weighting và fallback |
+| `docs/EVALUATION.md`           | Mô tả chỉ số đánh giá, benchmark và cách chạy evaluation                                    |
+| `docs/FINAL_REPORT_OUTLINE.md` | Dàn ý báo cáo cuối kỳ                                                                       |
+| `docs/PHAN_CONG_CONG_VIEC.md`  | Phân công công việc trong nhóm                                                              |
+| `docs/PROJECT_PROPOSAL.md`     | Đề xuất project ban đầu                                                                     |
+| `docs/SPRINT_PLAN.md`          | Kế hoạch sprint                                                                             |
 
-Trong đó:
+Ngoài ra:
 
-* `ALGORITHM.md`: mô tả deterministic inference, component-wise CSP,
-  backtracking, pruning, global mine-count weighting và fallback.
-* `EVALUATION.md`: mô tả kế hoạch, kết quả đánh giá solver, các chỉ số và cách
-  chạy evaluation.
-* `PHAN_CONG_CONG_VIEC.md`: mô tả phân công công việc trong nhóm.
+| File                        | Nội dung                  |
+| --------------------------- | ------------------------- |
+| `DEMO_GUIDE.md`             | Hướng dẫn demo CLI và GUI |
+| `examples/demo_commands.md` | Một số lệnh demo nhanh    |
 
-## 11. Quy trình làm việc với Git
+---
 
-Các bước làm việc khuyến nghị:
+## 13. Quy trình làm việc với Git
+
+Quy trình khuyến nghị:
 
 ```bash
 git checkout develop
@@ -372,23 +430,25 @@ Sau đó tạo Pull Request vào branch `develop`.
 
 Không nên commit trực tiếp lên `develop`.
 
-## 12. Trạng thái hiện tại
+---
 
-Project hiện đã có:
+## 14. Trạng thái hiện tại
+
+Project hiện đã hoàn thành các phần chính:
 
 * Board engine hoạt động ổn định.
-* Solver có thể tự động chọn hành động.
-* CLI demo, GUI và evaluation.
-* Evaluation có các chỉ số win rate, average guesses, average steps, average flags và average runtime.
-* Preset độ khó beginner, intermediate, expert và custom.
-* Component-wise CSP với backtracking, early pruning, global mine-count
-  weighting và fallback xác suất.
-* Hành động chắc chắn từ CSP probability và informative center opening.
-* Test tự động với tổng cộng 70 test.
-* Tài liệu demo, thuật toán và evaluation bằng tiếng Việt.
+* Solver có khả năng tự động chọn hành động.
+* CLI hỗ trợ demo và evaluation.
+* GUI PySide6 hỗ trợ quan sát và tương tác trực quan.
+* Evaluation có các chỉ số định lượng rõ ràng.
+* Thuật toán đã có component-wise CSP, backtracking, early pruning, global mine-count weighting và fallback xác suất.
+* Test tự động hiện có 70 test.
+* Tài liệu thuật toán, evaluation, demo và phân công đã được bổ sung.
 
-## 13. Kết luận
+---
 
-AI Minesweeper Solver là một project phù hợp với môn Nhập môn Trí tuệ nhân tạo vì kết hợp nhiều nội dung quan trọng như tìm kiếm, suy luận logic, ra quyết định trong điều kiện không chắc chắn và đánh giá hiệu quả thuật toán.
+## 15. Kết luận
 
-Project không chỉ mô phỏng trò chơi Minesweeper mà còn xây dựng một tác tử AI có khả năng chơi tự động, đưa ra quyết định và được đánh giá bằng các chỉ số định lượng rõ ràng.
+AI Minesweeper Solver là một project phù hợp với môn Nhập môn Trí tuệ nhân tạo vì kết hợp nhiều nội dung quan trọng: biểu diễn trạng thái, suy luận logic, constraint satisfaction problem, tìm kiếm có pruning, xác suất và đánh giá hiệu quả thuật toán.
+
+Project không chỉ mô phỏng trò chơi Minesweeper mà còn xây dựng một tác tử AI có thể chơi tự động, đưa ra quyết định dựa trên thông tin hiện có và được đánh giá bằng các chỉ số định lượng.
