@@ -342,12 +342,11 @@ Evaluation result
 
 Kết quả dưới đây được ghi nhận khi chạy 100 games với seed mặc định `0..99`:
 
-| Difficulty   | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
-| ------------ | ----: | ---: | -----: | -------: | ---------: | ---------: | -----------: | -----------: |
-| Beginner     |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         0.14 |   0.006662 s |
-| Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         0.55 |   0.079003 s |
-| Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         2.65 |   0.250324 s |
-
+| Difficulty | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Beginner | 100 | 98 | 2 | 98.00% | 24.40 | 9.82 | 0.14 | 0.007108 s |
+| Intermediate | 100 | 86 | 14 | 86.00% | 112.17 | 38.00 | 0.55 | 0.127104 s |
+| Expert | 100 | 32 | 68 | 32.00% | 231.32 | 76.27 | 2.65 | 0.448371 s |
 Kết quả có thể thay đổi theo seed, phiên bản Python, phần cứng và tải hệ thống. Khi so sánh các phiên bản solver, cần giữ nguyên preset, số ván, tập seed và `max-steps`.
 
 ---
