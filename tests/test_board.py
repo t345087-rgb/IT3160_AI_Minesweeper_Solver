@@ -145,3 +145,17 @@ def test_is_won_when_all_mines_are_flagged():
     board.flag(mine)
 
     assert board.is_won()
+
+
+def test_is_won_rejects_extra_safe_flag():
+    board = Board(rows=2, cols=2, mines=1)
+    mine = Position(0, 0)
+    safe = Position(0, 1)
+    board._mine_positions = {mine}
+    board._compute_numbers()
+    board._initialized = True
+
+    board.flag(mine)
+    board.flag(safe)
+
+    assert not board.is_won()

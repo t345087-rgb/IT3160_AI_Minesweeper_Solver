@@ -130,7 +130,7 @@ def test_new_board_uses_informative_center_opening():
     assert action is not None
     assert action.action_type == ActionType.REVEAL
     assert action.position == Position(4, 4)
-    assert action.probability is None
+    assert action.probability == 0.0
     assert action.reason == "informative center opening"
 
 

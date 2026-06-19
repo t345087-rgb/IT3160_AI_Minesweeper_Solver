@@ -25,22 +25,25 @@ class EvaluationResult:
 
 
 def is_winning_board(board: Board) -> bool:
-    """Return True if all non-mine cells are revealed OR all mines are correctly flagged."""
-    if not board._initialized:
+    """Return True if safe cells are revealed or all flags exactly match mines."""
+    if not board._initialized or board.is_lost():
         return False
 
     all_safe_revealed = True
     all_mines_flagged = True
+    no_extra_flags = True
     
     for pos in board.positions():
         if board.has_mine(pos):
             if board.state(pos) != CellState.FLAGGED:
                 all_mines_flagged = False
         else:
+            if board.state(pos) == CellState.FLAGGED:
+                no_extra_flags = False
             if board.state(pos) != CellState.REVEALED:
                 all_safe_revealed = False
                 
-    return all_safe_revealed or all_mines_flagged
+    return all_safe_revealed or (all_mines_flagged and no_extra_flags)
 
 
 def count_flags(board: Board) -> int:
@@ -50,7 +53,11 @@ def count_flags(board: Board) -> int:
 
 def is_guess_action(action: Action) -> bool:
     """Return True when a reveal is not known to be safe."""
-    return action.action_type == ActionType.REVEAL and action.probability != 0.0
+    if action.action_type != ActionType.REVEAL:
+        return False
+    if action.probability is None:
+        return True
+    return action.probability > 0.0
 
 
 def play_one_game(
