@@ -494,7 +494,7 @@ class MinesweeperSolver:
             return Action(
                 ActionType.REVEAL,
                 center,
-                None,
+                0.0,
                 "informative center opening",
             )
 

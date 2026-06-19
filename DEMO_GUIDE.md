@@ -30,7 +30,7 @@ Project **AI Minesweeper Solver** xây dựng một tác tử AI có khả năng
 
 *   **Chạy Demo mặc định (9x9, 10 mìn, 30 bước):**
     ```bash
-    python -m minesweeper
+    python -m minesweeper.cli
     ```
     hoặc
     ```bash

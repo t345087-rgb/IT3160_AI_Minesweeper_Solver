@@ -70,6 +70,13 @@ def run_demo(args: argparse.Namespace) -> None:
         )
         render(board)
 
+        if board.is_won():
+            console.print("Game won. Stopping demo.")
+            break
+        if board.is_lost():
+            console.print("Game lost. Stopping demo.")
+            break
+
 
 def run_evaluation(args: argparse.Namespace) -> None:
     rows, cols, mines = resolve_board_config(args)

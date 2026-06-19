@@ -18,6 +18,7 @@ Project hướng tới các mục tiêu chính sau:
 * Sử dụng đánh giá xác suất trong các tình huống không chắc chắn.
 * Chạy evaluation trên nhiều ván chơi để đo hiệu quả của solver.
 * Cung cấp CLI để demo và đánh giá solver ở nhiều độ khó khác nhau.
+* Cung cấp GUI để quan sát solver chạy trên bàn Minesweeper.
 * Viết test tự động để kiểm tra độ ổn định của các module chính.
 
 ## 3. Thành viên nhóm
@@ -33,15 +34,23 @@ Project hướng tới các mục tiêu chính sau:
 ```text
 AI_Minesweeper_Solver/
 ├── docs/
+│   ├── DEMO_GUIDE.md
 │   ├── EVALUATION.md
 │   └── PHAN_CONG_CONG_VIEC.md
 ├── src/
-│   └── minesweeper/
+│   ├── minesweeper/
+│   │   ├── __init__.py
+│   │   ├── board.py
+│   │   ├── cli.py
+│   │   ├── evaluation.py
+│   │   └── solver.py
+│   └── minesweeper_gui/
 │       ├── __init__.py
-│       ├── board.py
-│       ├── cli.py
-│       ├── evaluation.py
-│       └── solver.py
+│       ├── app.py
+│       ├── board_view.py
+│       ├── control_panel.py
+│       ├── game_loop.py
+│       └── main_window.py
 ├── tests/
 │   ├── test_board.py
 │   ├── test_evaluation.py
@@ -129,6 +138,10 @@ Module evaluation dùng để đánh giá solver trên nhiều ván chơi. Các 
 | Average flags   | Số ô được cắm cờ trung bình       |
 | Average runtime | Thời gian chạy trung bình mỗi ván |
 
+Với metric guess hiện tại, `probability=None` trên hành động reveal được tính
+là một guess vì solver không có estimate. Center opening dùng `probability=0.0`
+vì Board đảm bảo lượt mở đầu tiên là an toàn.
+
 ### 5.4. CLI
 
 File chính:
@@ -150,6 +163,17 @@ CLI cũng hỗ trợ các preset độ khó:
 | intermediate |                16 x 16 |                     40 |
 | expert       |                16 x 30 |                     99 |
 | custom       | Tùy chỉnh bằng tham số | Tùy chỉnh bằng tham số |
+
+### 5.5. GUI
+
+File chính:
+
+```text
+src/minesweeper_gui/app.py
+```
+
+GUI hỗ trợ tạo ván mới, chọn độ khó, thao tác thủ công trên bàn và chạy solver
+trong background thread để quan sát từng bước giải.
 
 ## 6. Cài đặt
 
@@ -205,6 +229,18 @@ python -m minesweeper.cli --difficulty intermediate
 python -m minesweeper.cli --difficulty expert
 ```
 
+Chạy GUI:
+
+```bash
+python -m minesweeper_gui.app
+```
+
+Nếu đã cài editable, có thể chạy bằng entry point:
+
+```bash
+minesweeper-gui
+```
+
 ## 8. Cách chạy evaluation
 
 Chạy evaluation mặc định:
@@ -223,8 +259,8 @@ Evaluation result
 - Win rate: 100.00%
 - Average steps: 24.20
 - Average flags: 9.80
-- Average guesses: 1.20
-- Average runtime: 0.006034 seconds
+- Average guesses: 0.20
+- Average runtime: 0.006049 seconds
 ```
 
 Chạy evaluation với preset beginner:
@@ -255,9 +291,9 @@ python -m minesweeper.cli --evaluate --difficulty custom --rows 9 --cols 9 --min
 
 | Difficulty   | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
 | ------------ | ----: | ---: | -----: | -------: | ---------: | ---------: | -----------: | -----------: |
-| Beginner     |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         1.14 |   0.005918 s |
-| Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         1.55 |   0.072679 s |
-| Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         3.65 |   0.243818 s |
+| Beginner     |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         0.14 |   0.006662 s |
+| Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         0.55 |   0.079003 s |
+| Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         2.65 |   0.250324 s |
 
 Đây là kết quả của một lần chạy với 100 seed mặc định cho mỗi độ khó. Win rate
 và runtime có thể thay đổi theo tập seed và môi trường chạy; xem
@@ -276,21 +312,21 @@ python -m pytest
 Kết quả hiện tại:
 
 ```text
-57 passed
+70 passed
 ```
 
 Các test hiện có:
 
 | File test                  | Số test | Nội dung chính                                                        |
 | -------------------------- | ------: | --------------------------------------------------------------------- |
-| `tests/test_board.py`      |      11 | Kiểm tra board engine, first-click safety, flag, reveal, visible view |
-| `tests/test_evaluation.py` |       3 | Kiểm tra evaluation, guess/runtime metric và format output            |
+| `tests/test_board.py`      |      16 | Kiểm tra board engine, first-click safety, flag, reveal, visible view |
+| `tests/test_evaluation.py` |      11 | Kiểm tra evaluation, guess/runtime metric và format output            |
 | `tests/test_solver.py`     |      43 | Kiểm tra inference, component-wise CSP, global weighting và actions   |
 
 Tổng cộng:
 
 ```text
-11 + 3 + 43 = 57 tests
+16 + 11 + 43 = 70 tests
 ```
 
 ## 10. Tài liệu liên quan
@@ -299,6 +335,7 @@ Các tài liệu phụ nằm trong thư mục `docs/`:
 
 ```text
 docs/ALGORITHM.md
+docs/DEMO_GUIDE.md
 docs/EVALUATION.md
 docs/PHAN_CONG_CONG_VIEC.md
 ```
@@ -341,14 +378,14 @@ Project hiện đã có:
 
 * Board engine hoạt động ổn định.
 * Solver có thể tự động chọn hành động.
-* CLI demo và evaluation.
+* CLI demo, GUI và evaluation.
 * Evaluation có các chỉ số win rate, average guesses, average steps, average flags và average runtime.
 * Preset độ khó beginner, intermediate, expert và custom.
 * Component-wise CSP với backtracking, early pruning, global mine-count
   weighting và fallback xác suất.
 * Hành động chắc chắn từ CSP probability và informative center opening.
-* Test tự động với tổng cộng 57 test.
-* Tài liệu thuật toán và evaluation bằng tiếng Việt.
+* Test tự động với tổng cộng 70 test.
+* Tài liệu demo, thuật toán và evaluation bằng tiếng Việt.
 
 ## 13. Kết luận
 

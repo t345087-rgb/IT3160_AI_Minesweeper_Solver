@@ -142,20 +142,24 @@ class Board:
         )
 
     def is_won(self) -> bool:
-        """Return True when all safe cells are revealed or all mines are flagged."""
+        """Return True when safe cells are revealed or flags exactly match mines."""
         if not self._initialized or self.is_lost():
             return False
 
         all_safe_revealed = True
         all_mines_flagged = True
+        no_extra_flags = True
         for pos in self.positions():
             if self.has_mine(pos):
                 if self.state(pos) != CellState.FLAGGED:
                     all_mines_flagged = False
-            elif self.state(pos) != CellState.REVEALED:
-                all_safe_revealed = False
+            else:
+                if self.state(pos) == CellState.FLAGGED:
+                    no_extra_flags = False
+                if self.state(pos) != CellState.REVEALED:
+                    all_safe_revealed = False
 
-        return all_safe_revealed or all_mines_flagged
+        return all_safe_revealed or (all_mines_flagged and no_extra_flags)
 
     def visible_view(self) -> list[list[str]]:
         view: list[list[str]] = []

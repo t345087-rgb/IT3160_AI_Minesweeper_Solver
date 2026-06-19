@@ -4,7 +4,7 @@ from minesweeper.board import Board, Position, CellState
 from minesweeper.solver import MinesweeperSolver as Solver
 
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QMenuBar, QMenu, QMessageBox, QStatusBar, QLabel
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 
 from minesweeper_gui.board_view import BoardView
 from minesweeper_gui.control_panel import ControlPanel
@@ -206,3 +206,8 @@ class MainWindow(QMainWindow):
         self._mines_label.setText(f"Mines: {total_mines}")
         self._flags_label.setText(f"Flags: {flagged}")
         self._revealed_label.setText(f"Revealed: {revealed}")
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Stop the solver thread before closing the window."""
+        self._stop_solver()
+        event.accept()
