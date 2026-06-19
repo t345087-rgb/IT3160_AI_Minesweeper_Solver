@@ -17,7 +17,10 @@ phiên bản Python, phần cứng và tải hệ thống.
 | Average guesses | Số lần đoán trung bình trong mỗi ván       |
 | Average runtime | Thời gian inference trung bình mỗi ván     |
 
-Một hành động reveal được tính là guess khi xác suất của nó không bằng `0.0`.
+Một hành động reveal được tính là guess khi probability lớn hơn `0.0`, hoặc
+khi probability là `None` vì solver không có estimate. Center opening dùng
+`probability=0.0` vì Board đảm bảo lượt mở đầu tiên là an toàn, nên không được
+tính là guess.
 Runtime chỉ đo thời gian `choose_next_action`, không phải toàn bộ thời gian tạo
 board, cập nhật board hoặc in output.
 
@@ -33,9 +36,9 @@ python -m minesweeper.cli --evaluate --difficulty expert --games 100 --max-steps
 
 | Difficulty   | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
 | ------------ | ----: | ---: | -----: | -------: | ---------: | ---------: | -----------: | -----------: |
-| Beginner     |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         1.14 |   0.005918 s |
-| Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         1.55 |   0.072679 s |
-| Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         3.65 |   0.243818 s |
+| Beginner     |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         0.14 |   0.006662 s |
+| Intermediate |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         0.55 |   0.079003 s |
+| Expert       |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         2.65 |   0.250324 s |
 
 Trong lần chạy này, độ khó cao hơn có win rate thấp hơn, đồng thời average
 steps, average guesses và runtime cao hơn. Đây là kết quả của đúng 100 seed đã
@@ -73,10 +76,10 @@ python -m pytest
 Kết quả hiện tại:
 
 ```text
-57 passed
+70 passed
 ```
 
-Test suite gồm 11 board tests, 3 evaluation tests và 43 solver tests. Các test
+Test suite gồm 16 board tests, 11 evaluation tests và 43 solver tests. Các test
 solver bao phủ deterministic/subset inference, frontier components,
 component-wise CSP, backtracking/pruning, component model counts, global
 mine-count weighting, fallback, certain-probability actions và center opening.
