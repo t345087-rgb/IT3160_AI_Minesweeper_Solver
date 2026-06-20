@@ -333,23 +333,83 @@ Evaluation result
 - Average steps: 24.40
 - Average flags: 9.82
 - Average guesses: 0.14
-- Average runtime: 0.006662 seconds
+- Average runtime: 0.017792 seconds
 ```
 
 ---
 
 ## 10. Kết quả benchmark hiện tại
 
-Kết quả dưới đây được ghi nhận khi chạy 100 games với seed mặc định `0..99`:
+Kết quả dưới đây được ghi nhận khi chạy 100 games với seed mặc định `0..99`.
 
-| Difficulty | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Beginner | 100 | 98 | 2 | 98.00% | 24.40 | 9.82 | 0.14 | 0.007108 s |
-| Intermediate | 100 | 86 | 14 | 86.00% | 112.17 | 38.00 | 0.55 | 0.127104 s |
-| Expert | 100 | 32 | 68 | 32.00% | 231.32 | 76.27 | 2.65 | 0.448371 s |
+### 10.1. Kết quả của Proposed Solver
+
+| Difficulty   | Board | Mines | Games | Wins | Losses | Win rate | Avg. steps | Avg. flags | Avg. guesses | Avg. runtime |
+| ------------ | ----: | ----: | ----: | ---: | -----: | -------: | ---------: | ---------: | -----------: | -----------: |
+| Beginner     |   9x9 |    10 |   100 |   98 |      2 |   98.00% |      24.40 |       9.82 |         0.14 |   0.017792 s |
+| Intermediate | 16x16 |    40 |   100 |   86 |     14 |   86.00% |     112.17 |      38.00 |         0.55 |   0.305543 s |
+| Expert       | 16x30 |    99 |   100 |   32 |     68 |   32.00% |     231.32 |      76.27 |         2.65 |   0.725130 s |
+
 Kết quả có thể thay đổi theo seed, phiên bản Python, phần cứng và tải hệ thống. Khi so sánh các phiên bản solver, cần giữ nguyên preset, số ván, tập seed và `max-steps`.
 
----
+### 10.2. So sánh với các baseline tự chạy
+
+Để đánh giá đóng góp của từng thành phần trong solver, nhóm so sánh Proposed Solver với một số baseline đơn giản hơn. Các baseline này được chạy trên cùng tập seed `0..99`.
+
+| Method                   | Beginner | Intermediate | Expert |
+| ------------------------ | -------: | -----------: | -----: |
+| Random Solver            |    0.00% |        0.00% |  0.00% |
+| Basic Logic Only         |   80.00% |       46.00% |  2.00% |
+| Logic + Subset Inference |   88.00% |       66.00% | 18.00% |
+| Proposed Solver          |   98.00% |       86.00% | 32.00% |
+
+Kết quả cho thấy mỗi thành phần đều cải thiện hiệu quả của solver. Basic Logic Only giúp solver vượt xa lựa chọn ngẫu nhiên. Subset inference tiếp tục tăng tỉ lệ thắng bằng cách khai thác quan hệ giữa các constraint. Proposed Solver đạt kết quả tốt nhất nhờ kết hợp thêm CSP theo component, global mine-count weighting và probability estimation khi không còn nước đi chắc chắn.
+
+### 10.3. Kết quả chi tiết theo từng mức độ
+
+#### Beginner
+
+| Method                   | Wins | Losses | Win rate | Steps | Flags | Guesses |    Runtime |
+| ------------------------ | ---: | -----: | -------: | ----: | ----: | ------: | ---------: |
+| Random Solver            |    0 |    100 |    0.00% |  4.44 |  0.00 |    4.44 | 0.000218 s |
+| Basic Logic Only         |   80 |     20 |   80.00% | 22.64 |  8.97 |    0.66 | 0.018287 s |
+| Logic + Subset Inference |   88 |     12 |   88.00% | 23.25 |  9.28 |    0.24 | 0.028748 s |
+| Proposed Solver          |   98 |      2 |   98.00% | 24.40 |  9.82 |    0.14 | 0.017792 s |
+
+#### Intermediate
+
+| Method                   | Wins | Losses | Win rate |  Steps | Flags | Guesses |    Runtime |
+| ------------------------ | ---: | -----: | -------: | -----: | ----: | ------: | ---------: |
+| Random Solver            |    0 |    100 |    0.00% |   3.24 |  0.00 |    3.24 | 0.000573 s |
+| Basic Logic Only         |   46 |     54 |   46.00% |  91.52 | 31.24 |    1.45 | 0.243395 s |
+| Logic + Subset Inference |   66 |     34 |   66.00% | 100.29 | 34.15 |    0.64 | 0.282784 s |
+| Proposed Solver          |   86 |     14 |   86.00% | 112.17 | 38.00 |    0.55 | 0.305543 s |
+
+#### Expert
+
+| Method                   | Wins | Losses | Win rate |  Steps | Flags | Guesses |    Runtime |
+| ------------------------ | ---: | -----: | -------: | -----: | ----: | ------: | ---------: |
+| Random Solver            |    0 |    100 |    0.00% |   3.37 |  0.00 |    3.37 | 0.002169 s |
+| Basic Logic Only         |    2 |     98 |    2.00% | 115.72 | 38.97 |    3.11 | 0.385530 s |
+| Logic + Subset Inference |   18 |     82 |   18.00% | 176.11 | 58.39 |    2.29 | 0.715846 s |
+| Proposed Solver          |   32 |     68 |   32.00% | 231.32 | 76.27 |    2.65 | 0.725130 s |
+
+### 10.4. Đối chiếu với kết quả tham khảo ngoài
+
+Ngoài các baseline được nhóm tự chạy, project cũng đối chiếu Proposed Solver với một số kết quả tham khảo từ các nghiên cứu trước. Các kết quả này chỉ được dùng làm mốc tham khảo, không phải baseline do nhóm tự cài đặt lại.
+
+| Method           | 9x9, 10 mines | 16x16, 40 mines | 16x30, 99 mines |
+| ---------------- | ------------: | --------------: | --------------: |
+| Proposed Solver  |        98.00% |          86.00% |          32.00% |
+| PSEQ-D256 (SFAR) |      91.6949% |        78.2295% |        40.0468% |
+| PAFR             |         93.8% |           79.6% |           27.5% |
+
+Notes:
+
+* PSEQ-D256 uses SFAR, meaning the first action is guaranteed to be safe.
+* SNR results are not used because SNR also guarantees that the neighboring cells around the first action are safe, making the game easier than the first-click safety setting used in this project.
+* PAFR is used as an external reference from Liu et al. and uses random guessing when no certain move is available.
+* External results are included only for reference comparison and were not reimplemented in this project.
 
 ## 11. Kiểm thử
 

@@ -15,6 +15,7 @@ except ModuleNotFoundError:
         def print(self, message: object = "") -> None:
             builtins.print(message)
 
+
 from minesweeper.board import Board
 from minesweeper.evaluation import evaluate_solver, format_evaluation_result
 from minesweeper.solver import MinesweeperSolver
@@ -44,35 +45,52 @@ def render(board: Board) -> None:
         return
 
     table = Table(show_header=False, box=None)
+
     for _ in range(board.cols):
         table.add_column(justify="center")
+
     for row in board.visible_view():
         table.add_row(*row)
+
     console.print(table)
 
 
 def run_demo(args: argparse.Namespace) -> None:
     rows, cols, mines = resolve_board_config(args)
 
-    board = Board(rows, cols, mines, seed=args.seed)
-    solver = MinesweeperSolver(board)
+    board = Board(
+        rows,
+        cols,
+        mines,
+        seed=args.seed,
+    )
+
+    solver = MinesweeperSolver(
+        board,
+        strategy=args.strategy,
+        random_seed=args.seed,
+    )
 
     for step in range(args.steps):
         action = solver.choose_next_action()
+
         if action is None:
             console.print("No more actions.")
             break
 
         solver.apply_action(action)
+
         console.print(
             f"Step {step + 1}: {action.action_type.value} {action.position} "
             f"| {action.reason} | p={action.probability}"
         )
+
         render(board)
 
         if board.is_won():
             console.print("Game won. Stopping demo.")
             break
+
         if board.is_lost():
             console.print("Game lost. Stopping demo.")
             break
@@ -87,12 +105,15 @@ def run_evaluation(args: argparse.Namespace) -> None:
         cols=cols,
         mines=mines,
         max_steps=args.max_steps,
+        strategy=args.strategy,
     )
+
     console.print(format_evaluation_result(result))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run AI Minesweeper Solver demo")
+
     parser.add_argument("--rows", type=int, default=9)
     parser.add_argument("--cols", type=int, default=9)
     parser.add_argument("--mines", type=int, default=10)
@@ -108,17 +129,30 @@ def main() -> None:
             "--rows, --cols and --mines."
         ),
     )
+
+    parser.add_argument(
+        "--strategy",
+        choices=["random", "basic", "subset", "full"],
+        default="full",
+        help=(
+            "Solver strategy for comparison: random, basic, subset, or full. "
+            "Default is full."
+        ),
+    )
+
     parser.add_argument(
         "--evaluate",
         action="store_true",
         help="Run evaluation over multiple games instead of a single demo game.",
     )
+
     parser.add_argument(
         "--games",
         type=int,
         default=100,
         help="Number of games used in evaluation mode.",
     )
+
     parser.add_argument(
         "--max-steps",
         type=int,
