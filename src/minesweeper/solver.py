@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import combinations
 from math import comb
+from random import Random
 from typing import Iterable
+
 
 from minesweeper.board import Board, CellState, Position
 
@@ -44,16 +46,20 @@ class ComponentModelCounts:
 def frontier_components(constraints: Iterable[Constraint]) -> list[list[Position]]:
     """Return connected frontier-variable components in stable position order."""
     adjacency: dict[Position, set[Position]] = {}
+
     for constraint in constraints:
         variables = sorted(constraint.variables, key=lambda p: (p.row, p.col))
+
         for position in variables:
             adjacency.setdefault(position, set())
+
         for first, second in combinations(variables, 2):
             adjacency[first].add(second)
             adjacency[second].add(first)
 
     components: list[list[Position]] = []
     visited: set[Position] = set()
+
     for start in sorted(adjacency, key=lambda p: (p.row, p.col)):
         if start in visited:
             continue
@@ -61,9 +67,11 @@ def frontier_components(constraints: Iterable[Constraint]) -> list[list[Position
         component: list[Position] = []
         stack = [start]
         visited.add(start)
+
         while stack:
             position = stack.pop()
             component.append(position)
+
             for neighbor in adjacency[position]:
                 if neighbor not in visited:
                     visited.add(neighbor)
@@ -81,16 +89,19 @@ def _constraints_for_component(
     constraints: Iterable[Constraint],
 ) -> list[Constraint]:
     component_variables = set(component)
+
     related = [
         constraint
         for constraint in constraints
         if constraint.variables & component_variables
     ]
+
     for constraint in related:
         if not constraint.variables.issubset(component_variables):
             raise RuntimeError(
                 "frontier constraint spans multiple connected components"
             )
+
     return related
 
 
@@ -100,13 +111,16 @@ def _enumerate_component_model_counts(
 ) -> ComponentModelCounts | None:
     component_constraints = list(constraints)
     variable_set = set(variables)
+
     constraint_variables = [
         constraint.variables & variable_set
         for constraint in component_constraints
     ]
+
     constraints_by_variable: dict[Position, list[int]] = {
         position: [] for position in variables
     }
+
     for constraint_index, positions in enumerate(constraint_variables):
         for position in positions:
             constraints_by_variable[position].append(constraint_index)
@@ -119,14 +133,19 @@ def _enumerate_component_model_counts(
             position.col,
         ),
     )
+
     assigned_mines = [0] * len(component_constraints)
+
     unassigned_variables = [
         len(positions) for positions in constraint_variables
     ]
+
     ways_by_mine_count: dict[int, int] = {}
+
     mine_hits_by_position_and_mine_count = {
         position: {} for position in variables
     }
+
     assignment: set[Position] = set()
 
     def backtrack(variable_index: int) -> None:
@@ -136,22 +155,29 @@ def _enumerate_component_model_counts(
                 for index, constraint in enumerate(component_constraints)
             ):
                 mine_count = len(assignment)
+
                 ways_by_mine_count[mine_count] = (
                     ways_by_mine_count.get(mine_count, 0) + 1
                 )
+
                 for position in assignment:
                     mine_hits = mine_hits_by_position_and_mine_count[position]
                     mine_hits[mine_count] = mine_hits.get(mine_count, 0) + 1
+
             return
 
         position = ordered_variables[variable_index]
         related_constraints = constraints_by_variable[position]
+
         for is_mine in (0, 1):
             branch_is_valid = True
+
             for constraint_index in related_constraints:
                 assigned_mines[constraint_index] += is_mine
                 unassigned_variables[constraint_index] -= 1
+
                 mine_count = component_constraints[constraint_index].mine_count
+
                 if (
                     assigned_mines[constraint_index] > mine_count
                     or assigned_mines[constraint_index]
@@ -163,7 +189,9 @@ def _enumerate_component_model_counts(
             if branch_is_valid:
                 if is_mine:
                     assignment.add(position)
+
                 backtrack(variable_index + 1)
+
                 if is_mine:
                     assignment.remove(position)
 
@@ -175,6 +203,7 @@ def _enumerate_component_model_counts(
 
     if not ways_by_mine_count:
         return None
+
     return ComponentModelCounts(
         ways_by_mine_count=ways_by_mine_count,
         mine_hits_by_position_and_mine_count=(
@@ -188,10 +217,12 @@ def _enumerate_component_probabilities(
     constraints: Iterable[Constraint],
 ) -> dict[Position, float] | None:
     model_counts = _enumerate_component_model_counts(variables, constraints)
+
     if model_counts is None:
         return None
 
     valid_count = sum(model_counts.ways_by_mine_count.values())
+
     return {
         position: (
             sum(
@@ -210,12 +241,14 @@ def _convolve_mine_count_distributions(
     second: dict[int, int],
 ) -> dict[int, int]:
     result: dict[int, int] = {}
+
     for first_mines, first_ways in first.items():
         for second_mines, second_ways in second.items():
             mine_count = first_mines + second_mines
             result[mine_count] = (
                 result.get(mine_count, 0) + first_ways * second_ways
             )
+
     return result
 
 
@@ -225,7 +258,9 @@ def _global_weighted_probabilities(
     remaining_mines: int,
 ) -> dict[Position, float] | None:
     component_count = len(components)
+
     prefix_distributions: list[dict[int, int]] = [{0: 1}]
+
     for _, model_counts in components:
         prefix_distributions.append(
             _convolve_mine_count_distributions(
@@ -237,7 +272,9 @@ def _global_weighted_probabilities(
     suffix_distributions: list[dict[int, int]] = [
         {} for _ in range(component_count + 1)
     ]
+
     suffix_distributions[component_count] = {0: 1}
+
     for index in range(component_count - 1, -1, -1):
         suffix_distributions[index] = _convolve_mine_count_distributions(
             components[index][1].ways_by_mine_count,
@@ -252,22 +289,27 @@ def _global_weighted_probabilities(
         return 0
 
     all_component_distribution = prefix_distributions[-1]
+
     denominator = sum(
         component_ways
         * unconstrained_ways(remaining_mines - component_mines)
         for component_mines, component_ways in all_component_distribution.items()
     )
+
     if denominator == 0:
         return None
 
     probabilities: dict[Position, float] = {}
+
     for index, (positions, model_counts) in enumerate(components):
         other_component_distribution = _convolve_mine_count_distributions(
             prefix_distributions[index],
             suffix_distributions[index + 1],
         )
+
         for position in positions:
             numerator = 0
+
             for position_component_mines, mine_hits in (
                 model_counts.mine_hits_by_position_and_mine_count[
                     position
@@ -285,24 +327,29 @@ def _global_weighted_probabilities(
                             - other_mines
                         )
                     )
+
             probabilities[position] = numerator / denominator
 
     if unconstrained_count:
         expected_unconstrained_mines_numerator = 0
+
         for component_mines, component_ways in (
             all_component_distribution.items()
         ):
             unconstrained_mines = remaining_mines - component_mines
+
             expected_unconstrained_mines_numerator += (
                 component_ways
                 * unconstrained_mines
                 * unconstrained_ways(unconstrained_mines)
             )
+
         unconstrained_probability = (
             expected_unconstrained_mines_numerator
             / denominator
             / unconstrained_count
         )
+
         probabilities.update(
             {
                 position: unconstrained_probability
@@ -314,72 +361,144 @@ def _global_weighted_probabilities(
 
 
 class MinesweeperSolver:
-    """Solver combining deterministic logic and probability fallback."""
+    """Solver combining deterministic logic, subset inference and probability fallback.
 
-    def __init__(self, board: Board):
+    Available strategies for comparison:
+
+    - random:
+        Randomly reveal hidden cells.
+
+    - basic:
+        Use only deterministic Minesweeper rules.
+        If no certain action exists, choose a random hidden cell.
+
+    - subset:
+        Use deterministic rules and subset inference.
+        If no certain action exists, choose a random hidden cell.
+
+    - full:
+        Use deterministic rules, subset inference and probability estimation.
+    """
+
+    VALID_STRATEGIES = {"random", "basic", "subset", "full"}
+
+    def __init__(
+        self,
+        board: Board,
+        strategy: str = "full",
+        random_seed: int | None = None,
+    ):
+        if strategy not in self.VALID_STRATEGIES:
+            raise ValueError(
+                f"Unknown solver strategy: {strategy}. "
+                f"Expected one of {sorted(self.VALID_STRATEGIES)}."
+            )
+
         self.board = board
+        self.strategy = strategy
+        self.random = Random(random_seed)
 
     def frontier_constraints(self) -> list[Constraint]:
         constraints: list[Constraint] = []
+
         for pos in self.board.positions():
             if self.board.state(pos) != CellState.REVEALED:
                 continue
+
             hidden: set[Position] = set()
             flagged = 0
+
             for n in self.board.neighbors(pos):
                 if self.board.state(n) == CellState.FLAGGED:
                     flagged += 1
                 elif self.board.state(n) == CellState.HIDDEN:
                     hidden.add(n)
+
             remaining = self.board.number(pos) - flagged
+
             if hidden:
                 constraints.append(Constraint(frozenset(hidden), remaining))
+
         return constraints
 
     def deterministic_actions(self) -> list[Action]:
         """Basic Minesweeper rules.
 
         Rule 1: if remaining mines = 0, every hidden neighbor is safe.
-        Rule 2: if remaining mines = number of hidden neighbors, every hidden neighbor is a mine.
+        Rule 2: if remaining mines = number of hidden neighbors,
+        every hidden neighbor is a mine.
         """
         actions: dict[Position, Action] = {}
+
         for con in self.frontier_constraints():
             if con.mine_count == 0:
                 for p in con.variables:
-                    actions[p] = Action(ActionType.REVEAL, p, 0.0, "all remaining neighbors are safe")
+                    actions[p] = Action(
+                        ActionType.REVEAL,
+                        p,
+                        0.0,
+                        "all remaining neighbors are safe",
+                    )
+
             elif con.mine_count == len(con.variables):
                 for p in con.variables:
-                    actions[p] = Action(ActionType.FLAG, p, 1.0, "all remaining neighbors are mines")
+                    actions[p] = Action(
+                        ActionType.FLAG,
+                        p,
+                        1.0,
+                        "all remaining neighbors are mines",
+                    )
+
         return list(actions.values())
 
     def subset_inference_actions(self) -> list[Action]:
-        """Infer new constraints using subset rule: A⊆B => B-A has count count(B)-count(A)."""
+        """Infer new constraints using subset rule.
+
+        If A is a subset of B, then B - A has count count(B) - count(A).
+        """
         base = self.frontier_constraints()
         inferred: list[Constraint] = []
+
         for a in base:
             for b in base:
                 if a == b:
                     continue
+
                 if a.variables.issubset(b.variables):
                     diff = b.variables - a.variables
                     count = b.mine_count - a.mine_count
+
                     if diff:
                         inferred.append(Constraint(frozenset(diff), count))
 
         actions: dict[Position, Action] = {}
+
         for con in inferred:
             if con.mine_count == 0:
                 for p in con.variables:
-                    actions[p] = Action(ActionType.REVEAL, p, 0.0, "subset inference: safe")
+                    actions[p] = Action(
+                        ActionType.REVEAL,
+                        p,
+                        0.0,
+                        "subset inference: safe",
+                    )
+
             elif con.mine_count == len(con.variables):
                 for p in con.variables:
-                    actions[p] = Action(ActionType.FLAG, p, 1.0, "subset inference: mine")
+                    actions[p] = Action(
+                        ActionType.FLAG,
+                        p,
+                        1.0,
+                        "subset inference: mine",
+                    )
+
         return list(actions.values())
 
     def probability_estimates(self) -> dict[Position, float]:
         """Estimate mine probabilities using globally weighted component models."""
         constraints = self.frontier_constraints()
         components = frontier_components(constraints)
+
         if not components:
             return {}
 
@@ -387,15 +506,19 @@ class MinesweeperSolver:
             self.board.state(position) == CellState.FLAGGED
             for position in self.board.positions()
         )
+
         hidden_positions = [
             position
             for position in self.board.positions()
             if self.board.state(position) == CellState.HIDDEN
         ]
+
         remaining_mines = self.board.mine_count - flagged_cells
+
         frontier_positions = {
             position for component in components for position in component
         }
+
         unconstrained_positions = [
             position
             for position in hidden_positions
@@ -405,21 +528,26 @@ class MinesweeperSolver:
         enumerated_components: list[
             tuple[list[Position], ComponentModelCounts]
         ] = []
+
         can_use_global_weighting = (
             0 <= remaining_mines <= len(hidden_positions)
         )
+
         if can_use_global_weighting:
             for component in components:
                 if len(component) > MAX_ENUMERATION_VARIABLES:
                     can_use_global_weighting = False
                     break
+
                 model_counts = _enumerate_component_model_counts(
                     component,
                     _constraints_for_component(component, constraints),
                 )
+
                 if model_counts is None:
                     can_use_global_weighting = False
                     break
+
                 enumerated_components.append((component, model_counts))
 
         if can_use_global_weighting:
@@ -428,6 +556,7 @@ class MinesweeperSolver:
                 unconstrained_positions,
                 remaining_mines,
             )
+
             if global_probabilities is not None:
                 return global_probabilities
 
@@ -443,12 +572,15 @@ class MinesweeperSolver:
     ) -> dict[Position, float]:
         fallback_probability = self._fallback_probability()
         probabilities: dict[Position, float] = {}
+
         for component in components:
             component_constraints = _constraints_for_component(
                 component,
                 constraints,
             )
+
             component_probabilities = None
+
             if len(component) <= MAX_ENUMERATION_VARIABLES:
                 component_probabilities = _enumerate_component_probabilities(
                     component,
@@ -459,6 +591,7 @@ class MinesweeperSolver:
                 component_probabilities = {
                     position: fallback_probability for position in component
                 }
+
             probabilities.update(component_probabilities)
 
         return probabilities
@@ -468,17 +601,46 @@ class MinesweeperSolver:
             self.board.state(position) == CellState.FLAGGED
             for position in self.board.positions()
         )
+
         hidden_unflagged_cells = sum(
             self.board.state(position) == CellState.HIDDEN
             for position in self.board.positions()
         )
+
         remaining_mines = self.board.mine_count - flagged_cells
+
         probability = (
             remaining_mines / hidden_unflagged_cells
             if hidden_unflagged_cells > 0
             else 0.0
         )
+
         return max(0.0, min(1.0, probability))
+
+    def _prefer_flag_action(self, actions: list[Action]) -> Action:
+        """Prefer flagging a mine if both flag and reveal actions are available."""
+        flags = [a for a in actions if a.action_type == ActionType.FLAG]
+        return flags[0] if flags else actions[0]
+
+    def _random_reveal_action(self, reason: str) -> Action | None:
+        """Reveal a random hidden cell."""
+        hidden = [
+            position
+            for position in self.board.positions()
+            if self.board.state(position) == CellState.HIDDEN
+        ]
+
+        if not hidden:
+            return None
+
+        position = self.random.choice(hidden)
+
+        return Action(
+            ActionType.REVEAL,
+            position,
+            None,
+            reason,
+        )
 
     def choose_next_action(self) -> Action | None:
         board_has_started = any(
@@ -486,11 +648,18 @@ class MinesweeperSolver:
             in {CellState.REVEALED, CellState.FLAGGED}
             for position in self.board.positions()
         )
+
         if not board_has_started:
+            if self.strategy == "random":
+                return self._random_reveal_action(
+                    "random opening cell",
+                )
+
             center = Position(
                 self.board.rows // 2,
                 self.board.cols // 2,
             )
+
             return Action(
                 ActionType.REVEAL,
                 center,
@@ -498,21 +667,43 @@ class MinesweeperSolver:
                 "informative center opening",
             )
 
-        for strategy in (self.deterministic_actions, self.subset_inference_actions):
-            actions = strategy()
-            if actions:
-                flags = [a for a in actions if a.action_type == ActionType.FLAG]
-                return flags[0] if flags else actions[0]
+        if self.strategy == "random":
+            return self._random_reveal_action(
+                "random hidden cell",
+            )
+
+        actions = self.deterministic_actions()
+
+        if actions:
+            return self._prefer_flag_action(actions)
+
+        if self.strategy == "basic":
+            return self._random_reveal_action(
+                "basic strategy fallback: random hidden cell",
+            )
+
+        actions = self.subset_inference_actions()
+
+        if actions:
+            return self._prefer_flag_action(actions)
+
+        if self.strategy == "subset":
+            return self._random_reveal_action(
+                "subset strategy fallback: random hidden cell",
+            )
 
         probs = self.probability_estimates()
+
         if probs:
             certain_mines = [
                 (position, probability)
                 for position, probability in probs.items()
                 if probability >= 1.0 - PROBABILITY_EPSILON
             ]
+
             if certain_mines:
                 position, probability = certain_mines[0]
+
                 return Action(
                     ActionType.FLAG,
                     position,
@@ -525,8 +716,10 @@ class MinesweeperSolver:
                 for position, probability in probs.items()
                 if probability <= PROBABILITY_EPSILON
             ]
+
             if certain_safe:
                 position, probability = certain_safe[0]
+
                 return Action(
                     ActionType.REVEAL,
                     position,
@@ -535,12 +728,17 @@ class MinesweeperSolver:
                 )
 
             safest = min(probs.items(), key=lambda item: item[1])
-            return Action(ActionType.REVEAL, safest[0], safest[1], "lowest estimated mine probability")
 
-        hidden = [p for p in self.board.positions() if self.board.state(p) == CellState.HIDDEN]
-        if hidden:
-            return Action(ActionType.REVEAL, hidden[0], None, "no information; first hidden cell fallback")
-        return None
+            return Action(
+                ActionType.REVEAL,
+                safest[0],
+                safest[1],
+                "lowest estimated mine probability",
+            )
+
+        return self._random_reveal_action(
+            "no information; random hidden cell fallback",
+        )
 
     def apply_action(self, action: Action) -> None:
         if action.action_type == ActionType.FLAG:

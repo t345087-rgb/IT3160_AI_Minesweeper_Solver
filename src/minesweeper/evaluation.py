@@ -13,6 +13,7 @@ from minesweeper.solver import Action, ActionType, MinesweeperSolver
 @dataclass
 class EvaluationResult:
     """Summary statistics for a batch of Minesweeper games."""
+
     games: int
     wins: int
     losses: int
@@ -32,7 +33,7 @@ def is_winning_board(board: Board) -> bool:
     all_safe_revealed = True
     all_mines_flagged = True
     no_extra_flags = True
-    
+
     for pos in board.positions():
         if board.has_mine(pos):
             if board.state(pos) != CellState.FLAGGED:
@@ -42,21 +43,27 @@ def is_winning_board(board: Board) -> bool:
                 no_extra_flags = False
             if board.state(pos) != CellState.REVEALED:
                 all_safe_revealed = False
-                
+
     return all_safe_revealed or (all_mines_flagged and no_extra_flags)
 
 
 def count_flags(board: Board) -> int:
     """Return the number of currently flagged cells."""
-    return sum(1 for pos in board.positions() if board.state(pos) == CellState.FLAGGED)
+    return sum(
+        1
+        for pos in board.positions()
+        if board.state(pos) == CellState.FLAGGED
+    )
 
 
 def is_guess_action(action: Action) -> bool:
     """Return True when a reveal is not known to be safe."""
     if action.action_type != ActionType.REVEAL:
         return False
+
     if action.probability is None:
         return True
+
     return action.probability > 0.0
 
 
@@ -66,10 +73,26 @@ def play_one_game(
     mines: int = 10,
     max_steps: int = 200,
     seed: int | None = None,
+    strategy: str = "full",
 ) -> tuple[bool, int, int, int, float]:
-    """Play one complete game using the solver. Returns (won, steps, flags, guesses, inference_time)."""
-    board = Board(rows=rows, cols=cols, mines=mines, seed=seed)
-    solver = MinesweeperSolver(board)
+    """Play one complete game using the selected solver strategy.
+
+    Returns:
+        (won, steps, flags, guesses, inference_time)
+    """
+    board = Board(
+        rows=rows,
+        cols=cols,
+        mines=mines,
+        seed=seed,
+    )
+
+    solver = MinesweeperSolver(
+        board,
+        strategy=strategy,
+        random_seed=seed,
+    )
+
     steps = 0
     guesses = 0
     pure_inference_time = 0.0
@@ -83,7 +106,13 @@ def play_one_game(
         pure_inference_time += time.perf_counter() - t0
 
         if action is None:
-            return is_winning_board(board), steps, count_flags(board), guesses, pure_inference_time
+            return (
+                is_winning_board(board),
+                steps,
+                count_flags(board),
+                guesses,
+                pure_inference_time,
+            )
 
         steps += 1
 
@@ -96,12 +125,27 @@ def play_one_game(
                     board.reveal(action.position)
                 except ValueError:
                     pass
-                return False, steps, count_flags(board), guesses, pure_inference_time
+
+                return (
+                    False,
+                    steps,
+                    count_flags(board),
+                    guesses,
+                    pure_inference_time,
+                )
+
             board.reveal(action.position)
+
         elif action.action_type == ActionType.FLAG:
             board.flag(action.position)
 
-    return is_winning_board(board), steps, count_flags(board), guesses, pure_inference_time
+    return (
+        is_winning_board(board),
+        steps,
+        count_flags(board),
+        guesses,
+        pure_inference_time,
+    )
 
 
 def evaluate_solver(
@@ -111,12 +155,14 @@ def evaluate_solver(
     mines: int = 10,
     max_steps: int = 200,
     seeds: Iterable[int] | None = None,
+    strategy: str = "full",
 ) -> EvaluationResult:
-    """Evaluate the solver on many randomly generated boards."""
+    """Evaluate the selected solver strategy on many generated boards."""
     if games <= 0:
         raise ValueError("games must be positive")
 
     seed_list = list(seeds) if seeds is not None else list(range(games))
+
     if len(seed_list) < games:
         raise ValueError("not enough seeds for the requested number of games")
 
@@ -133,17 +179,20 @@ def evaluate_solver(
             mines=mines,
             max_steps=max_steps,
             seed=seed_list[i],
+            strategy=strategy,
         )
 
         total_runtime_seconds += inference_time
 
         if won:
             wins += 1
+
         total_steps += steps
         total_flags += flags
         total_guesses += guesses
 
     losses = games - wins
+
     return EvaluationResult(
         games=games,
         wins=wins,
